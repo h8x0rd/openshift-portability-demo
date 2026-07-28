@@ -1,0 +1,14 @@
+apiVersion: apps.open-cluster-management.io/v1beta1
+kind: GitOpsCluster
+metadata:
+  name: portability-demo-gitops
+  namespace: openshift-gitops
+spec:
+  argoServer:
+    # Replace this with the ACM managed-cluster name of the hub.
+    cluster: local-cluster
+    argoNamespace: openshift-gitops
+  placementRef:
+    apiVersion: cluster.open-cluster-management.io/v1beta1
+    kind: Placement
+    name: portability-demo-registered-clusters

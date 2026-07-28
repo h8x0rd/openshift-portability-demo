@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: portability-demo
+  namespace: openshift-gitops
+spec:
+  generators:
+    - clusterDecisionResource:
+        configMapRef: acm-placement
+        labelSelector:
+          matchLabels:
+            cluster.open-cluster-management.io/placement: portability-demo-targets
+        requeueAfterSeconds: 15
+  template:
+    metadata:
+      name: 'portability-demo-{{name}}'
+      labels:
+        demo.portability/application: portability-demo
+        demo.portability/cluster: '{{name}}'
+    spec:
+      project: default
+      destination:
+        server: '{{server}}'
+        namespace: portability-demo
+      source:
+        repoURL: https://github.com/h8x0rd/openshift-portability-demo.git
+        targetRevision: main
+        path: charts/portability-demo
+        helm:
+          releaseName: portability-demo
+          valueFiles:
+            - 'values-{{name}}.yaml'
+          parameters:
+            - name: cluster.name
+              value: '{{name}}'
+            - name: cluster.apiServer
+              value: '{{server}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - PruneLast=true

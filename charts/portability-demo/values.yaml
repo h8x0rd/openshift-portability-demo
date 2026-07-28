@@ -1,0 +1,33 @@
+replicaCount: 2
+
+image:
+  repository: registry.access.redhat.com/ubi9/nginx-124
+  tag: latest
+  pullPolicy: IfNotPresent
+
+cluster:
+  name: unknown-cluster
+  apiServer: unknown
+  region: unspecified
+  environment: demo
+
+application:
+  name: Portability Demo
+  version: "1.0.0"
+  message: One application definition. Any selected OpenShift cluster.
+
+service:
+  port: 8080
+
+route:
+  enabled: true
+  tls:
+    termination: edge
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
