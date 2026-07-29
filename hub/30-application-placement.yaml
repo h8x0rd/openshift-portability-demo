@@ -18,4 +18,4 @@ spec:
               values: [Amazon]
             - key: region
               operator: In
-              values: [eu-west-3]
+              values: [eu-west-3, eu-west-2]
