@@ -6,17 +6,9 @@ metadata:
   labels:
     demo.portability/component: workload-placement
 spec:
-  numberOfClusters: 1
   predicates:
     - requiredClusterSelector:
         labelSelector:
           matchExpressions:
-            - key: vendor
-              operator: In
-              values: [OpenShift]
-            - key: cloud
-              operator: In
-              values: [Amazon]
-            - key: region
-              operator: In
-              values: [eu-west-3, eu-west-2]
+            - key: demo.portability/disabled
+              operator: Exists
