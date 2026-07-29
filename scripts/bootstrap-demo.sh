@@ -74,8 +74,7 @@ ok "Secondary: $secondary"
 if ! $check_only; then
   echo
   echo "Next steps:"
-  echo "  1. ./scripts/configure-repository.sh"
-  echo "  2. git add . && git commit -m 'Configure portability demo' && git push"
-  echo "  3. oc apply -f bootstrap/portability-demo-hub.yaml"
-  echo "  4. ./scripts/preflight.sh"
+  echo "  1. ./scripts/preflight.sh --platform"
+  echo "  2. oc apply -f bootstrap/portability-demo-hub.yaml"
+  echo "  3. ./scripts/preflight.sh --deployment"
 fi

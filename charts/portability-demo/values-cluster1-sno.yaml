@@ -1,3 +1,0 @@
-cluster:
-  region: eu-west-3
-  environment: AWS SNO portability demo

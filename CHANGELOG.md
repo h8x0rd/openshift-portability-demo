@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.0.3
+
+- Convert common GitHub and GitLab SSH remotes to HTTPS for Argo CD while preserving the local Git remote.
+- Add explicit `--preserve-ssh` support and preflight validation for matching Argo CD repository credentials.
+- Add separate `--platform` and `--deployment` preflight stages.
+- Correct the README deployment order so platform preflight runs before the root Application is applied.
+- Add `remove-legacy-v4-files.sh` and clearer validation for in-place upgrades from v4.
+
+
 ## 5.0.2 - 2026-07-29
 
 ### Fixed

@@ -25,7 +25,7 @@ spec:
         server: '{{ .server }}'
         namespace: portability-demo
       source:
-        repoURL: git@github.com:h8x0rd/openshift-portability-demo.git
+        repoURL: https://github.com/h8x0rd/openshift-portability-demo.git
         targetRevision: main
         path: charts/portability-demo
         helm:
@@ -38,7 +38,7 @@ spec:
             - name: application.gitRevision
               value: main
             - name: application.gitRepository
-              value: git@github.com:h8x0rd/openshift-portability-demo.git
+              value: https://github.com/h8x0rd/openshift-portability-demo.git
       syncPolicy:
         automated:
           prune: true

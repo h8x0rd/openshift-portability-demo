@@ -172,22 +172,61 @@ The administrator bootstrap requires permission to:
 
 Creating the `ManagedClusterSetBinding` requires the protected `managedclustersets/bind` permission. Run the bootstrap as a hub cluster administrator or an appropriately delegated administrator.
 
-# Clone and configure the repository
+# Installation and deployment workflow
 
-Fork or copy the repository into a Git location controlled by the demo owner, then clone it:
+The order matters. Configure and validate Git first, prepare ACM cluster roles, run the **platform preflight**, and only then apply the root Argo CD Application.
+
+## 1. Clone or upgrade the repository
+
+For a new installation, use a clean clone:
 
 ```bash
 git clone <your-repository-url>
 cd openshift-portability-demo
 ```
 
-Configure all manifests to use the clone's `origin` URL and current branch:
+Do not unpack a v5 archive over a v4 working tree without removing obsolete files. Git does not automatically delete files that disappeared from a newer archive. For an in-place v4 upgrade, run:
+
+```bash
+./scripts/remove-legacy-v4-files.sh
+git status --short
+```
+
+This removes the known region- and cluster-specific v4 files, including old `values-cluster*.yaml`, regional Placement scenarios and `scripts/move.sh`.
+
+## 2. Configure the Argo CD repository source
+
+Run:
 
 ```bash
 ./scripts/configure-repository.sh
 ```
 
-Alternatively, supply them explicitly:
+The script reads the local `origin` and current branch. Local Git and Argo CD do not need to use the same transport.
+
+For example, when the local remote is:
+
+```text
+git@github.com:owner/openshift-portability-demo.git
+```
+
+it configures Argo CD with:
+
+```text
+https://github.com/owner/openshift-portability-demo.git
+```
+
+Your local `origin` remains SSH, so normal `git pull` and `git push` continue using your SSH key. This conversion avoids relying on `SSH_AUTH_SOCK`: the Argo CD repo-server pod cannot use the SSH agent running on your workstation.
+
+For a private repository, either use an HTTPS repository credential or deliberately preserve SSH:
+
+```bash
+./scripts/configure-repository.sh --preserve-ssh
+```
+
+When preserving SSH, configure a matching repository Secret/deploy key in the `openshift-gitops` Argo CD instance before deployment.
+
+An explicit repository and branch may also be supplied:
 
 ```bash
 ./scripts/configure-repository.sh \
@@ -195,13 +234,13 @@ Alternatively, supply them explicitly:
   main
 ```
 
-Validate the repository before committing:
+Validate the working tree:
 
 ```bash
 ./scripts/validate.sh
 ```
 
-Commit and push the generated configuration:
+Then commit and push the configuration:
 
 ```bash
 git add .
@@ -209,11 +248,11 @@ git commit -m "Configure portability demo repository"
 git push
 ```
 
-The root Argo CD Application cannot deploy successfully until these changes are available in the configured Git repository.
+Argo CD reads the remote repository, not uncommitted files on the workstation.
 
-# Administrator bootstrap
+## 3. Administrator bootstrap
 
-Assign the two imported managed clusters to the reusable primary and secondary roles:
+Assign the imported managed clusters to reusable primary and secondary roles:
 
 ```bash
 ./scripts/bootstrap-demo.sh \
@@ -221,29 +260,21 @@ Assign the two imported managed clusters to the reusable primary and secondary r
   --secondary <secondary-managedcluster-name>
 ```
 
-The script performs the following actions:
+This administrator action:
 
-1. Verifies that you are logged into the ACM hub.
-2. Verifies that both named `ManagedCluster` resources exist.
-3. Creates the `demo-clusters` ManagedClusterSet.
-4. Creates its ManagedClusterSetBinding in `openshift-gitops`.
-5. Adds both clusters to the set.
-6. Adds the portable `primary` and `secondary` role labels.
-7. Verifies the resulting configuration.
+1. Creates the `demo-clusters` ManagedClusterSet.
+2. Creates its ManagedClusterSetBinding in `openshift-gitops`.
+3. Adds both managed clusters to the set.
+4. Applies `demo.portability/role=primary|secondary`.
+5. Verifies the resulting ACM configuration.
 
-When the hub has exactly two non-hub managed clusters, the names can be inferred:
+When exactly two non-hub managed clusters exist, the names can be inferred:
 
 ```bash
 ./scripts/bootstrap-demo.sh
 ```
 
-The inferred assignment is printed. For a customer demonstration, explicitly naming the primary and secondary clusters is safer and more predictable.
-
-Validate an existing bootstrap without changing anything:
-
-```bash
-./scripts/bootstrap-demo.sh --check-only
-```
+For a customer demonstration, explicit cluster names are safer.
 
 Manual verification:
 
@@ -255,56 +286,76 @@ oc get managedclusters \
   -L demo.portability/role
 ```
 
-# Deploy the hub-side GitOps resources
+## 4. Run platform preflight before application bootstrap
 
-Create the root Argo CD Application:
+```bash
+./scripts/preflight.sh --platform
+```
+
+This read-only check validates everything required **before** the root Application is created:
+
+- Repository placeholders and source transport
+- Matching Argo CD credentials when an SSH source is deliberately used
+- ACM MultiClusterHub and Placement APIs
+- GitOpsCluster and ApplicationSet APIs
+- `openshift-gitops` namespace
+- ManagedClusterSet and binding
+- Exactly two cluster-set members
+- Primary and secondary role labels
+- Managed-cluster joined and availability conditions
+
+Resolve every reported error before continuing.
+
+## 5. Apply the root Argo CD Application
 
 ```bash
 oc apply -f bootstrap/portability-demo-hub.yaml
 ```
 
-Run preflight:
+Force a hard refresh when reusing an existing Application:
 
 ```bash
-./scripts/preflight.sh
+oc annotate applications.argoproj.io portability-demo-hub \
+  -n openshift-gitops \
+  argocd.argoproj.io/refresh=hard \
+  --overwrite
 ```
 
-`preflight.sh` is a read-only, staged readiness check. Before the root Application is installed it validates platform and administrator prerequisites. After the root Application exists, it also requires that Application to be **Synced** and verifies that the expected Placement, GitOpsCluster and ApplicationSet resources were actually created. A root Application with `Health=Healthy` but `Sync=Unknown` is **not** a successful deployment: it normally means Argo CD cannot load or render the Git source.
+## 6. Run deployment preflight
 
-For focused root-Application diagnostics, run:
+```bash
+./scripts/preflight.sh --deployment
+```
+
+The deployment check requires:
+
+- Root Application `Synced`
+- Registration Placement present
+- GitOpsCluster present
+- Workload Placement present
+- ApplicationSet present
+
+A root Application with `Health=Healthy` but `Sync=Unknown` is not deployed. Run:
 
 ```bash
 ./scripts/diagnose-root-application.sh
 ```
 
-This prints the configured repository, revision and source path, the Argo CD comparison conditions, Git reachability from the workstation, and the expected hub resources.
+for source, revision and Argo CD comparison diagnostics.
 
-`preflight.sh` checks:
-
-- Repository placeholders have been replaced.
-- ACM and OpenShift GitOps APIs are available.
-- The `openshift-gitops` namespace exists.
-- The ManagedClusterSet and binding exist.
-- Exactly two clusters are members of the demo set.
-- Primary and secondary roles are assigned.
-- Managed clusters are joined and reports their availability.
-- Whether the root Argo CD Application has been created.
-
-A failed preflight does not change the environment. It reports the prerequisite or deployment step that is missing.
-
-Watch the full control loop:
+## 7. Observe the control loop
 
 ```bash
 ./scripts/watch-demo.sh
 ```
 
-Or display a single status snapshot:
+or:
 
 ```bash
 ./scripts/status.sh
 ```
 
-Always use the fully qualified Argo CD resource name when checking Applications:
+Always use the fully qualified Argo CD API when checking Applications:
 
 ```bash
 oc get applications.argoproj.io -n openshift-gitops
