@@ -185,15 +185,6 @@ git clone <your-repository-url>
 cd openshift-portability-demo
 ```
 
-Do not unpack a v5 archive over a v4 working tree without removing obsolete files. Git does not automatically delete files that disappeared from a newer archive. For an in-place v4 upgrade, run:
-
-```bash
-./scripts/remove-legacy-v4-files.sh
-git status --short
-```
-
-This removes the known region- and cluster-specific v4 files, including old `values-cluster*.yaml`, regional Placement scenarios and `scripts/move.sh`.
-
 ## 2. Configure the Argo CD repository source
 
 Run:
