@@ -233,6 +233,18 @@ Validate the working tree:
 ./scripts/validate.sh
 ```
 
+### Validation behaviour
+
+`./scripts/validate.sh` is read-only and performs repository-level checks before anything is applied to a cluster. It fails for conditions that would make the demo invalid, including unresolved configuration placeholders, inconsistent Argo CD source values, missing core files and broken Placement/ApplicationSet wiring.
+
+Git-state differences that may be intentional—such as an SSH local remote with an HTTPS Argo CD source, a mirror or fork, an unresolved local deployment revision, or uncommitted configuration—are reported as warnings rather than runtime changes.
+
+A freshly cloned, unconfigured repository should therefore stop with an actionable message instructing the operator to run:
+
+```bash
+./scripts/configure-repository.sh
+```
+
 Then commit and push the configuration:
 
 ```bash

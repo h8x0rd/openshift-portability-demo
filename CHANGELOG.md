@@ -1,5 +1,16 @@
 # Changelog
 
+## 5.0.6 - 2026-07-29
+
+### Validation hardening
+
+- Added fail-fast detection for unresolved repository URL and revision placeholders.
+- Added consistency checks between the root Argo CD Application and generated ApplicationSet source configuration.
+- Added checks for the registration Placement, workload Placement, generated destination server, generated Application naming and hub kustomization wiring.
+- Added required-file validation and retained YAML parsing, legacy-file and environment-neutrality checks.
+- Added non-blocking Git warnings for origin mismatches, unresolved local revisions and uncommitted repository configuration.
+- Kept all validation read-only; no runtime manifests or lifecycle behaviour changed.
+
 ## 5.0.5
 
 - Fixed recovery discovery by storing the simulated-failure marker as a ManagedCluster label rather than an annotation.
