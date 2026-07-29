@@ -495,12 +495,6 @@ Production designs must therefore consider:
 - Route health checks and traffic draining.
 - Recovery-point and recovery-time objectives.
 
-## Remove the workload everywhere
-
-```bash
-./scripts/scenario.sh remove
-```
-
 # Demonstrating GitOps drift correction
 
 After the workload is healthy, manually change a Git-managed object on a managed cluster, such as the Deployment replica count or ConfigMap content. Argo CD should restore the declared state.
@@ -538,6 +532,12 @@ The status tools dynamically discover:
 - Argo CD sync and health status.
 
 # Cleanup and retest
+
+## Remove the workload everywhere
+
+```bash
+./scripts/scenario.sh remove
+```
 
 ## Standard cleanup
 
