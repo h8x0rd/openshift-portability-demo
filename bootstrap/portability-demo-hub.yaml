@@ -6,8 +6,8 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/h8x0rd/openshift-portability-demo.git
-    targetRevision: main
+    repoURL: GIT_REPOSITORY_URL
+    targetRevision: GIT_TARGET_REVISION
     path: hub
   destination:
     server: https://kubernetes.default.svc

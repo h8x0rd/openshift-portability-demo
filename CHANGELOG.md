@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.0.3
+## 5.0.4
 
 - Convert common GitHub and GitLab SSH remotes to HTTPS for Argo CD while preserving the local Git remote.
 - Add explicit `--preserve-ssh` support and preflight validation for matching Argo CD repository credentials.
