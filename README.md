@@ -425,7 +425,7 @@ The script:
 2. Discovers the currently selected destination from the PlacementDecision.
 3. Refuses to overwrite a pre-existing unreachable taint, because it could represent a genuine outage.
 4. Marks the failure as demo-generated.
-5. Applies `cluster.open-cluster-management.io/unreachable:NoSelect`.
+5. Applies `demo.portability/simulated-unreachable:NoSelect`.
 6. Waits for the PlacementDecision to select the other eligible cluster.
 7. Prints the resulting status and elapsed time.
 

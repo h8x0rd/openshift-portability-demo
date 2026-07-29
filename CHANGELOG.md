@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.0.5
+
+- Fixed recovery discovery by storing the simulated-failure marker as a ManagedCluster label rather than an annotation.
+- Replaced the ACM-owned `unreachable` taint with the persistent demo-owned `demo.portability/simulated-unreachable:NoSelect` taint.
+- Updated cleanup and recovery to remove only the demo-owned taint and label.
+
 ## 5.0.4
 
 - Convert common GitHub and GitLab SSH remotes to HTTPS for Argo CD while preserving the local Git remote.

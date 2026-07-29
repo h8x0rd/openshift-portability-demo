@@ -16,19 +16,19 @@ actual="$(selected_clusters | head -1)"
 
 info "Simulating unreachability for $current"
 existing="$(oc get managedcluster "$current" -o json | jq -r '.spec.taints[]?.key')"
-if grep -qx 'cluster.open-cluster-management.io/unreachable' <<<"$existing"; then
-  die "$current already has an unreachable taint; refusing to claim a potentially genuine outage."
+if grep -qx 'demo.portability/simulated-unreachable' <<<"$existing"; then
+  die "$current already has the demo failover taint. Run ./scripts/recover.sh $current first."
 fi
 
-oc annotate managedcluster "$current" demo.portability/simulated-failure=true --overwrite >/dev/null
+oc label managedcluster "$current" demo.portability/simulated-failure=true --overwrite >/dev/null
 count="$(oc get managedcluster "$current" -o json | jq '.spec.taints // [] | length')"
 if (( count == 0 )); then
-  patch='[{"op":"add","path":"/spec/taints","value":[{"key":"cluster.open-cluster-management.io/unreachable","effect":"NoSelect"}]}]'
+  patch='[{"op":"add","path":"/spec/taints","value":[{"key":"demo.portability/simulated-unreachable","effect":"NoSelect"}]}]'
 else
-  patch='[{"op":"add","path":"/spec/taints/-","value":{"key":"cluster.open-cluster-management.io/unreachable","effect":"NoSelect"}}]'
+  patch='[{"op":"add","path":"/spec/taints/-","value":{"key":"demo.portability/simulated-unreachable","effect":"NoSelect"}}]'
 fi
 oc patch managedcluster "$current" --type=json -p="$patch" >/dev/null
-ok "Applied simulated ACM unreachable taint to $current"
+ok "Applied persistent demo NoSelect taint to $current"
 
 for i in {1..90}; do
   new="$(selected_clusters | head -1)"

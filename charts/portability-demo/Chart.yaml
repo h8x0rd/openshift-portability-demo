@@ -3,4 +3,4 @@ name: portability-demo
 description: Visual application portability demo for ACM and OpenShift GitOps
 type: application
 version: 0.5.1
-appVersion: "5.0.4"
+appVersion: "5.0.5"

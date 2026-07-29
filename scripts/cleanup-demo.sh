@@ -10,11 +10,11 @@ oc delete gitopsclusters.apps.open-cluster-management.io portability-demo -n "$G
 oc delete placements.cluster.open-cluster-management.io portability-demo-targets portability-demo-registered-clusters -n "$GITOPS_NAMESPACE" --ignore-not-found
 while read -r c; do
   [[ -z "$c" ]] && continue
-  simulated=$(oc get managedcluster "$c" -o jsonpath='{.metadata.annotations.demo\.portability/simulated-failure}')
+  simulated=$(oc get managedcluster "$c" -o jsonpath='{.metadata.labels.demo\.portability/simulated-failure}')
   [[ "$simulated" == true ]] || continue
-  idx=$(oc get managedcluster "$c" -o json | jq -r '.spec.taints // [] | to_entries[] | select(.value.key=="cluster.open-cluster-management.io/unreachable") | .key' | head -1)
+  idx=$(oc get managedcluster "$c" -o json | jq -r '.spec.taints // [] | to_entries[] | select(.value.key=="demo.portability/simulated-unreachable") | .key' | head -1)
   [[ -n "$idx" ]] && oc patch managedcluster "$c" --type=json -p="[{\"op\":\"remove\",\"path\":\"/spec/taints/$idx\"}]" || true
-  oc annotate managedcluster "$c" demo.portability/simulated-failure- || true
+  oc label managedcluster "$c" demo.portability/simulated-failure- || true
 done < <(clusters_in_set)
 if $full; then while read -r c; do oc label managedcluster "$c" cluster.open-cluster-management.io/clusterset- demo.portability/role- || true; done < <(clusters_in_set); oc delete managedclustersetbinding "$CLUSTERSET_NAME" -n "$GITOPS_NAMESPACE" --ignore-not-found; oc delete managedclusterset "$CLUSTERSET_NAME" --ignore-not-found; fi
 ok "Hub cleanup complete. Workload namespaces on unreachable managed clusters may require direct cleanup after recovery."
