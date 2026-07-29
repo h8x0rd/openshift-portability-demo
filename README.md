@@ -48,6 +48,7 @@ charts/portability-demo/       OpenShift-safe stateless Helm workload
 scripts/bootstrap-demo.sh      Admin prerequisite validation/preparation
 scripts/scenario.sh            Day-2 scenario controller
 scripts/status.sh              End-to-end status view
+scripts/cleanup-demo.sh        Safe reset and legacy-resource cleanup
 docs/day2-runbook.md           Operator runbook
 docs/presenter-script.md       Customer-demo narrative
 ```
@@ -171,6 +172,20 @@ Always use `applications.argoproj.io`; the short name `application` can resolve 
 ./scripts/scenario.sh secondary
 ```
 
+Scenario changes are **Git-driven**. The script copies the selected scenario into
+`hub/30-application-placement.yaml`, creates a Git commit and pushes the current
+branch. Argo CD then applies the new Placement intent. It does not patch the live
+Placement directly, because hub self-healing would immediately restore the Git
+version and undo the move.
+
+Use `--no-push` only when you intentionally want to review the local commit before
+pushing it:
+
+```bash
+./scripts/scenario.sh secondary --no-push
+git push
+```
+
 ## Return to the primary cluster
 
 ```bash
@@ -206,6 +221,80 @@ watch -n 2 './scripts/status.sh'
 ```
 
 See `docs/day2-runbook.md` and `docs/presenter-script.md` for the complete workshop sequence.
+
+# Clean reset and end-to-end retest
+
+The demo is stateless, so the safest way to remove tracking conflicts from an
+older iteration is to prune the generated Applications, remove the hub demo
+objects, and delete the `portability-demo` namespace on both managed clusters.
+
+## Standard reset
+
+This keeps the one-time `demo-clusters` ManagedClusterSet and binding:
+
+```bash
+./scripts/cleanup-demo.sh
+```
+
+The script commits and pushes the `remove` scenario, waits for generated Argo CD
+Applications to disappear, removes remaining hub resources, and deletes the demo
+namespace when kubeconfig contexts named `cluster1-sno` and `cluster2-sno` exist.
+Override context names when necessary:
+
+```bash
+CLUSTER1_CONTEXT=my-cluster1-context \
+CLUSTER2_CONTEXT=my-cluster2-context \
+./scripts/cleanup-demo.sh
+```
+
+If those contexts are unavailable, log in to each managed cluster and run:
+
+```bash
+oc delete namespace portability-demo --ignore-not-found
+```
+
+## Full platform-prerequisite reset
+
+To also remove the ManagedClusterSetBinding, cluster membership labels and the
+ManagedClusterSet, run as cluster-admin:
+
+```bash
+./scripts/cleanup-demo.sh --full
+```
+
+Use `--full` only when you want to demonstrate the administrator bootstrap from
+the beginning.
+
+## Retest from the beginning
+
+```bash
+# 1. Validate or recreate administrator prerequisites
+./scripts/bootstrap-demo.sh
+
+# 2. Recreate the root Argo CD Application
+oc apply -f bootstrap/portability-demo-hub.yaml
+
+# 3. Watch hub reconciliation
+watch -n 2 './scripts/status.sh'
+
+# 4. The cleanup leaves Git in the remove scenario; deploy the baseline
+./scripts/scenario.sh primary
+
+# 5. Exercise mobility
+./scripts/scenario.sh secondary
+./scripts/scenario.sh active-active
+./scripts/scenario.sh auto-failover
+./scripts/scenario.sh remove
+```
+
+Always use the fully qualified Argo CD API name, for example:
+
+```bash
+oc get applications.argoproj.io -n openshift-gitops
+```
+
+The short resource name `application` can resolve to `applications.app.k8s.io`
+instead of the Argo CD CRD.
 
 # Other integration considerations
 

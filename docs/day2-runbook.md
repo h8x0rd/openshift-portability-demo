@@ -1,6 +1,6 @@
 # Day-2 Operations and Application Mobility Runbook
 
-All commands run against the ACM hub. The generated Argo CD Applications deploy to managed clusters through the cluster credentials registered by `GitOpsCluster`.
+All commands run against the ACM hub. Scenario commands update Git, commit, and push the Placement intent; they do not patch the live Placement. The generated Argo CD Applications deploy to managed clusters through the cluster credentials registered by `GitOpsCluster`.
 
 ## Scenario 1 — Baseline on the primary region
 
@@ -65,3 +65,22 @@ Delete or edit a managed resource from a managed cluster. Argo CD self-heal rest
 ## Stateful DR boundary
 
 This ApplicationSet demo does not replicate persistent data. Production stateful failover requires an application-aware DR design, commonly ODF regional/metro DR with `DRPolicy`, `DRPlacementControl`, storage replication and tested fencing/recovery procedures. Do not present Placement-only relocation as stateful disaster recovery.
+
+
+## Clean reset before a new demonstration
+
+```bash
+./scripts/cleanup-demo.sh
+```
+
+Use `--full` to also remove the ManagedClusterSet and binding before repeating the
+administrator bootstrap. When the managed-cluster kubeconfig context names differ,
+set `CLUSTER1_CONTEXT` and `CLUSTER2_CONTEXT`.
+
+After cleanup:
+
+```bash
+./scripts/bootstrap-demo.sh
+oc apply -f bootstrap/portability-demo-hub.yaml
+./scripts/scenario.sh primary
+```

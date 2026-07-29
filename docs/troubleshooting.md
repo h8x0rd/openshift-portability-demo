@@ -137,3 +137,30 @@ oc get applications.argoproj.io portability-demo-cluster1-sno \
   -n openshift-gitops \
   -o jsonpath='{.status.sync.revision}{"\n"}'
 ```
+
+
+## Scenario changes are immediately reverted
+
+Do not apply files from `hub/placement-scenarios/` directly. The hub Application
+manages `hub/30-application-placement.yaml` with self-healing enabled. A direct
+`oc apply` creates drift and Argo CD restores the Git version. Use:
+
+```bash
+./scripts/scenario.sh secondary
+```
+
+The script commits and pushes the new Placement intent.
+
+## Applications are Healthy but OutOfSync with resources reported Missing
+
+This can indicate resources left by a previous demo iteration, stale Argo CD
+tracking metadata, or an Application pointing at a different destination cluster.
+For this stateless demo, perform a clean reset:
+
+```bash
+./scripts/cleanup-demo.sh
+```
+
+If the script cannot find kubeconfig contexts for the managed clusters, delete the
+`portability-demo` namespace manually on each managed cluster before bootstrapping
+again.

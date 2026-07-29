@@ -17,6 +17,7 @@ for file in \
   charts/portability-demo/templates/deployment.yaml \
   scripts/bootstrap-demo.sh \
   scripts/scenario.sh \
+  scripts/cleanup-demo.sh \
   scripts/status.sh \
   hub/placement-scenarios/auto-failover.yaml; do
   check_file "$file"
@@ -26,6 +27,10 @@ if grep -Rqs 'YOUR_ORG' bootstrap hub charts; then
   echo "ERROR: repository placeholder YOUR_ORG is still present." >&2
   failed=1
 fi
+
+for script in scripts/*.sh; do
+  bash -n "$script" || failed=1
+done
 
 if command -v helm >/dev/null 2>&1; then
   helm lint charts/portability-demo
