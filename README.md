@@ -269,7 +269,17 @@ Run preflight:
 ./scripts/preflight.sh
 ```
 
-`preflight.sh` is a read-only environment validation tool. It checks:
+`preflight.sh` is a read-only, staged readiness check. Before the root Application is installed it validates platform and administrator prerequisites. After the root Application exists, it also requires that Application to be **Synced** and verifies that the expected Placement, GitOpsCluster and ApplicationSet resources were actually created. A root Application with `Health=Healthy` but `Sync=Unknown` is **not** a successful deployment: it normally means Argo CD cannot load or render the Git source.
+
+For focused root-Application diagnostics, run:
+
+```bash
+./scripts/diagnose-root-application.sh
+```
+
+This prints the configured repository, revision and source path, the Argo CD comparison conditions, Git reachability from the workstation, and the expected hub resources.
+
+`preflight.sh` checks:
 
 - Repository placeholders have been replaced.
 - ACM and OpenShift GitOps APIs are available.
@@ -576,3 +586,28 @@ oc get applications.argoproj.io -n openshift-gitops
 ```
 
 See `docs/troubleshooting.md` for detailed fault isolation.
+
+
+## Root Application is Healthy but Sync is Unknown
+
+`Healthy` only describes the health of the `Application` custom resource. `Unknown` means Argo CD could not calculate the desired state. Until the root Application becomes `Synced`, no workload Placement or generated per-cluster Applications can exist.
+
+Run:
+
+```bash
+./scripts/diagnose-root-application.sh
+
+oc get applications.argoproj.io portability-demo-hub \
+  -n openshift-gitops -o json | \
+  jq '.status.conditions, .spec.source, .status.sync'
+```
+
+Correct the reported source error, then request a hard refresh:
+
+```bash
+oc annotate applications.argoproj.io portability-demo-hub \
+  -n openshift-gitops \
+  argocd.argoproj.io/refresh=hard --overwrite
+```
+
+Common causes are a private repository without Argo CD credentials, an incorrect repository URL, a target branch that was not pushed, or a source path that is absent from the configured revision.

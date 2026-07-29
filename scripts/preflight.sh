@@ -93,6 +93,34 @@ done
 
 if oc get applications.argoproj.io portability-demo-hub -n "$GITOPS_NAMESPACE" >/dev/null 2>&1; then
   check_ok "Root Argo CD Application exists"
+
+  root_json="$(oc get applications.argoproj.io portability-demo-hub -n "$GITOPS_NAMESPACE" -o json)"
+  root_sync="$(jq -r '.status.sync.status // "Unknown"' <<<"$root_json")"
+  root_health="$(jq -r '.status.health.status // "Unknown"' <<<"$root_json")"
+
+  if [[ "$root_sync" == "Synced" ]]; then
+    check_ok "Root Application is Synced"
+  else
+    check_fail "Root Application is not Synced (sync=$root_sync, health=$root_health)"
+    while IFS=$'\t' read -r type message; do
+      [[ -n "$message" ]] && printf '    Argo CD %s: %s\n' "$type" "$message" >&2
+    done < <(jq -r '.status.conditions[]? | [.type, .message] | @tsv' <<<"$root_json")
+    printf '    Run ./scripts/diagnose-root-application.sh for focused diagnostics.\n' >&2
+  fi
+
+  declare -a hub_objects=(
+    "placement.cluster.open-cluster-management.io/portability-demo-registered-clusters"
+    "gitopscluster.apps.open-cluster-management.io/portability-demo-gitops"
+    "placement.cluster.open-cluster-management.io/portability-demo-targets"
+    "applicationset.argoproj.io/portability-demo"
+  )
+  for object in "${hub_objects[@]}"; do
+    if oc get "$object" -n "$GITOPS_NAMESPACE" >/dev/null 2>&1; then
+      check_ok "Hub resource exists: $object"
+    else
+      check_fail "Hub resource is missing: $object"
+    fi
+  done
 else
   check_warn "Root Application does not exist yet; apply bootstrap/portability-demo-hub.yaml"
 fi
