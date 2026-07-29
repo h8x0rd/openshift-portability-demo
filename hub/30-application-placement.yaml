@@ -16,7 +16,7 @@ spec:
               values: [demo-clusters]
             - key: demo.portability/role
               operator: In
-              values: [primary]
+              values: [primary, secondary]
   prioritizerPolicy:
     mode: Exact
     configurations:
