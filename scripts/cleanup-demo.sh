@@ -7,7 +7,7 @@ oc delete applications.argoproj.io -n "$GITOPS_NAMESPACE" -l "$APP_LABEL" --igno
 oc delete applications.argoproj.io portability-demo-hub -n "$GITOPS_NAMESPACE" --ignore-not-found
 oc delete applicationsets.argoproj.io "$APPSET_NAME" -n "$GITOPS_NAMESPACE" --ignore-not-found
 oc delete gitopsclusters.apps.open-cluster-management.io portability-demo -n "$GITOPS_NAMESPACE" --ignore-not-found
-oc delete placements.cluster.open-cluster-management.io portability-demo-targets portability-demo-gitops-clusters -n "$GITOPS_NAMESPACE" --ignore-not-found
+oc delete placements.cluster.open-cluster-management.io portability-demo-targets portability-demo-registered-clusters -n "$GITOPS_NAMESPACE" --ignore-not-found
 while read -r c; do
   [[ -z "$c" ]] && continue
   simulated=$(oc get managedcluster "$c" -o jsonpath='{.metadata.annotations.demo\.portability/simulated-failure}')
