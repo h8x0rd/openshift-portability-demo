@@ -18,6 +18,8 @@ The repository is deliberately environment-neutral. It contains no fixed managed
 
 > This is a stateless application-mobility demonstration. It does not replicate persistent data or provide application-level disaster recovery by itself.
 
+<div align="center"><img width="800" height="512" alt="acm-gitops-ocp" src="https://github.com/user-attachments/assets/d64b6ccd-6e0b-4c4e-a8fc-cf88db8a09be" /></div>
+
 ## Logical topology
 
 | Component | Purpose |
@@ -653,6 +655,6 @@ oc annotate applications.argoproj.io portability-demo-hub \
 ```
 
 Common causes are a private repository without Argo CD credentials, an incorrect repository URL, a target branch that was not pushed, or a source path that is absent from the configured revision.
-<br />
-<div align="center"><img width="800" height="512" alt="acm-gitops-ocp" src="https://github.com/user-attachments/assets/d64b6ccd-6e0b-4c4e-a8fc-cf88db8a09be" /></div>
+
+
 
