@@ -5,16 +5,15 @@ metadata:
   namespace: openshift-gitops
 spec:
   project: default
+  source:
+    repoURL: GIT_REPOSITORY_URL
+    targetRevision: GIT_TARGET_REVISION
+    path: hub
   destination:
     server: https://kubernetes.default.svc
     namespace: openshift-gitops
-  source:
-    repoURL: https://github.com/h8x0rd/openshift-portability-demo.git
-    targetRevision: main
-    path: hub
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+    syncOptions: [CreateNamespace=true]

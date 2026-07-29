@@ -1,0 +1,14 @@
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: portability-demo-targets
+  namespace: openshift-gitops
+  labels:
+    demo.portability/application: portability-demo
+spec:
+  numberOfClusters: 0
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            demo.portability/disabled: "true"

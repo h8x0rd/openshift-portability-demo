@@ -81,7 +81,7 @@ nginxinc/nginx-unprivileged:1.28.1-alpine
 Confirm the rendered Deployment:
 
 ```bash
-oc --context cluster1-sno get deployment portability-demo \
+oc --context <primary-cluster> get deployment portability-demo \
   -n portability-demo \
   -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 ```
@@ -92,7 +92,7 @@ the generated Argo CD Application.
 ## Pod is in ImagePullBackOff
 
 ```bash
-oc --context cluster1-sno describe pod \
+oc --context <primary-cluster> describe pod \
   -n portability-demo \
   -l app.kubernetes.io/name=portability-demo
 ```
@@ -106,7 +106,7 @@ accessible registry and change `image.repository` and `image.tag` in
 Inspect the event:
 
 ```bash
-oc --context cluster1-sno get events \
+oc --context <primary-cluster> get events \
   -n portability-demo \
   --sort-by=.lastTimestamp
 ```
@@ -117,10 +117,10 @@ SCC. Do not add `runAsUser: 101`; let OpenShift assign a namespace UID.
 ## Route returns 503
 
 ```bash
-oc --context cluster1-sno get deploy,pod,svc,endpoints,route \
+oc --context <primary-cluster> get deploy,pod,svc,endpoints,route \
   -n portability-demo
 
-oc --context cluster1-sno describe deployment portability-demo \
+oc --context <primary-cluster> describe deployment portability-demo \
   -n portability-demo
 ```
 
@@ -133,7 +133,7 @@ The Deployment includes a checksum of `configmap.yaml` in the pod-template
 annotations. Confirm that the new commit reached the generated Application:
 
 ```bash
-oc get applications.argoproj.io portability-demo-cluster1-sno \
+oc get applications.argoproj.io portability-demo-<primary-cluster> \
   -n openshift-gitops \
   -o jsonpath='{.status.sync.revision}{"\n"}'
 ```

@@ -5,8 +5,7 @@ metadata:
   namespace: openshift-gitops
 spec:
   goTemplate: true
-  goTemplateOptions:
-    - missingkey=error
+  goTemplateOptions: [missingkey=error]
   generators:
     - clusterDecisionResource:
         configMapRef: acm-placement
@@ -26,27 +25,22 @@ spec:
         server: '{{ .server }}'
         namespace: portability-demo
       source:
-        repoURL: https://github.com/h8x0rd/openshift-portability-demo.git
-        targetRevision: main
+        repoURL: GIT_REPOSITORY_URL
+        targetRevision: GIT_TARGET_REVISION
         path: charts/portability-demo
         helm:
           releaseName: portability-demo
-          valueFiles:
-            - 'values-{{ .name }}.yaml'
           parameters:
             - name: cluster.name
               value: '{{ .name }}'
             - name: cluster.apiServer
               value: '{{ .server }}'
             - name: application.gitRevision
-              value: main
+              value: GIT_TARGET_REVISION
             - name: application.gitRepository
-              value: https://github.com/h8x0rd/openshift-portability-demo.git
+              value: GIT_REPOSITORY_URL
       syncPolicy:
         automated:
           prune: true
           selfHeal: true
-        syncOptions:
-          - CreateNamespace=true
-          - PruneLast=true
-          - ApplyOutOfSyncOnly=true
+        syncOptions: [CreateNamespace=true, PruneLast=true, ApplyOutOfSyncOnly=true]

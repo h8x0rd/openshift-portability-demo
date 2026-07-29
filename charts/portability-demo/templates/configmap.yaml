@@ -76,7 +76,7 @@ data:
               <div class="label">Currently running on</div>
               <div class="cluster">{{ .Values.cluster.name }}</div>
             </div>
-            <div class="region">AWS {{ .Values.cluster.region }}</div>
+            <div class="region">Placement-selected OpenShift destination</div>
           </article>
           <div class="side">
             <article class="card"><div class="label">Environment</div><div class="value">{{ .Values.cluster.environment }}</div></article>

@@ -1,339 +1,183 @@
-# OpenShift Day-2 Operations & Application Mobility Demo
+# OpenShift Application Portability Demo
 
-A reusable demonstration of fleet-aware application operations with **Red Hat Advanced Cluster Management (ACM)** and **Red Hat OpenShift GitOps**. A single Helm workload can be deployed, relocated, expanded, reconciled and availability-failed-over across two OpenShift SNO clusters by changing placement intent on the hub.
+A reusable, GitOps-driven demonstration of application mobility across two ACM-managed OpenShift clusters. ACM Placement chooses the destination, an Argo CD ApplicationSet translates that decision into an Application, and OpenShift GitOps reconciles the same Helm chart on the selected cluster.
 
-## What the demo proves
+## What it demonstrates
 
-- **Portable deployment:** one chart and one Git revision across multiple clusters.
-- **Planned mobility:** move a stateless application between AWS regions.
-- **Active-active expansion:** deploy simultaneously to both clusters.
-- **Availability-driven failover:** select one healthy destination from the eligible fleet.
-- **Day-2 rollout:** Git changes trigger rolling updates.
-- **Drift correction:** Argo CD self-heal restores declared state.
-- **Clean decommissioning:** remove placement and prune generated applications.
+- Planned movement between primary and secondary clusters
+- Active-active deployment to both clusters
+- Availability-driven failover using ACM-compatible `NoSelect` taints
+- Git as the source of truth for every scenario
+- Automated pruning, recovery and clean reset
 
-> This is a stateless mobility demonstration. Placement and GitOps do not replicate persistent application data. See **Stateful DR boundary** below.
-
-## Lab topology
-
-| Cluster | Role | Region |
-|---|---|---|
-| `local-cluster` | ACM hub and OpenShift GitOps | Hub |
-| `cluster1-sno` | Primary demo destination | `eu-west-3` |
-| `cluster2-sno` | Secondary demo destination | `eu-west-2` |
-
-## Control flow
+No cluster names, cloud providers, regions or Git repository URLs are embedded in the release. Cluster roles are expressed through labels:
 
 ```text
-Git commit ──> OpenShift GitOps on hub
-                    │
-                    ├── GitOpsCluster registers eligible managed clusters
-                    │
-Placement intent ──> PlacementDecision
-                    │
-                    └── ApplicationSet generates one Argo CD Application
-                        for each selected managed cluster
-                                      │
-                                      └── Helm workload + Route
+demo.portability/role=primary
+demo.portability/role=secondary
 ```
 
-## Repository layout
+## Prerequisites
 
-```text
-bootstrap/                     Root Argo CD Application
-prerequisites/                 One-time cluster-admin resources
-hub/                           GitOpsCluster, Placements and ApplicationSet
-hub/placement-scenarios/       Primary, secondary, active-active, failover, none
-charts/portability-demo/       OpenShift-safe stateless Helm workload
-scripts/bootstrap-demo.sh      Admin prerequisite validation/preparation
-scripts/scenario.sh            Day-2 scenario controller
-scripts/status.sh              End-to-end status view
-scripts/cleanup-demo.sh        Safe reset and legacy-resource cleanup
-docs/day2-runbook.md           Operator runbook
-docs/presenter-script.md       Customer-demo narrative
-```
+- Red Hat Advanced Cluster Management hub with two imported managed clusters
+- OpenShift GitOps and the ACM GitOps integration
+- `oc`, `git`, `jq`, and `python3`
+- Permission to create/bind a ManagedClusterSet and label ManagedClusters
 
-# Administrator prerequisites
-
-These are platform-level actions and should be completed once by a hub cluster administrator.
-
-## 1. ACM hub and managed clusters
-
-ACM must be installed and available, and both SNO clusters must already be imported. Verify:
+## Clone and configure
 
 ```bash
-oc get multiclusterhub -A
-oc get managedclusters -L region -L cloud -L vendor
+git clone <your-fork-url>
+cd openshift-portability-demo
+./scripts/configure-repository.sh
 ```
 
-Both managed clusters must report `Joined=True` and `Available=True` before the initial demo.
-
-## 2. OpenShift GitOps Operator and Argo CD instance
-
-Install the Red Hat OpenShift GitOps Operator on the ACM hub. This repository expects the default Argo CD instance in `openshift-gitops`.
+The configuration script reads the `origin` URL and current branch automatically. Alternatively:
 
 ```bash
-oc get csv -A | grep -i openshift-gitops
-oc get deployments -n openshift-gitops
+./scripts/configure-repository.sh <repository-url> <branch-or-tag>
 ```
 
-## 3. ACM GitOps integration APIs
-
-The integration is ready when these APIs exist:
+Commit and push the generated repository settings:
 
 ```bash
-oc api-resources --api-group=apps.open-cluster-management.io | grep gitopsclusters
-oc api-resources --api-group=cluster.open-cluster-management.io | grep -E 'placements|placementdecisions|managedclustersets'
-oc api-resources --api-group=argoproj.io | grep -E 'applicationsets|applications'
+git add .
+git commit -m "Configure portability demo repository"
+git push
 ```
 
-Required resources:
+## Assign reusable cluster roles
 
-- `GitOpsCluster`
-- `Placement` and `PlacementDecision`
-- `ManagedClusterSet` and `ManagedClusterSetBinding`
-- Argo CD `Application` and `ApplicationSet`
+```bash
+./scripts/bootstrap-demo.sh   --primary <first-managedcluster-name>   --secondary <second-managedcluster-name>
+```
 
-The `GitOpsCluster` controller registers Placement-selected managed clusters with the Argo CD instance. The ApplicationSet cluster-decision generator then consumes the workload PlacementDecision.
-
-## 4. One-time cluster-set preparation with cluster-admin
-
-A `ManagedClusterSetBinding` projects a cluster-scoped set into the namespace containing the Placements. Creating it requires the protected `managedclustersets/bind` permission, which the application controller intentionally does not receive.
-
-Run the bootstrap helper as cluster-admin:
+When exactly two non-hub managed clusters exist, the script can infer them:
 
 ```bash
 ./scripts/bootstrap-demo.sh
 ```
 
-It performs all of the following:
-
-1. Confirms login to the hub.
-2. Verifies ACM, GitOps and integration APIs.
-3. Verifies the two managed clusters are imported and joined.
-4. Checks permission to create and bind a ManagedClusterSet.
-5. Applies `prerequisites/clusterset-and-binding.yaml`.
-6. Assigns both managed clusters to `demo-clusters`.
-7. Verifies the binding exists in `openshift-gitops`.
-
-To validate without changing anything:
+Validate the result:
 
 ```bash
-./scripts/bootstrap-demo.sh --check-only
+./scripts/bootstrap-demo.sh   --primary <first-managedcluster-name>   --secondary <second-managedcluster-name>   --check-only
 ```
 
-Manual equivalent:
-
-```bash
-oc apply -f prerequisites/clusterset-and-binding.yaml
-oc label managedcluster cluster1-sno cluster.open-cluster-management.io/clusterset=demo-clusters --overwrite
-oc label managedcluster cluster2-sno cluster.open-cluster-management.io/clusterset=demo-clusters --overwrite
-oc get managedclustersetbinding demo-clusters -n openshift-gitops
-```
-
-# Demo-owner bootstrap
-
-## 1. Configure and push the repository
-
-```bash
-./scripts/configure-repository.sh https://github.com/h8x0rd/openshift-portability-demo.git
-./scripts/validate.sh
-git add .
-git commit -m 'Add Day-2 application mobility demo'
-git push
-```
-
-## 2. Create the root Application
+## Deploy the hub application
 
 ```bash
 oc apply -f bootstrap/portability-demo-hub.yaml
+./scripts/preflight.sh
+./scripts/watch-demo.sh
 ```
 
-Check the full chain:
-
-```bash
-./scripts/status.sh
-```
-
-Initially, `portability-demo-targets` selects `cluster1-sno`, and Argo CD should show:
-
-```text
-portability-demo-hub
-portability-demo-cluster1-sno
-```
-
-Always use `applications.argoproj.io`; the short name `application` can resolve to a different Kubernetes API.
-
-# Day-2 scenarios
-
-## Planned move to the secondary cluster
-
-```bash
-./scripts/scenario.sh secondary
-```
-
-Scenario changes are **Git-driven**. The script copies the selected scenario into
-`hub/30-application-placement.yaml`, creates a Git commit and pushes the current
-branch. Argo CD then applies the new Placement intent. It does not patch the live
-Placement directly, because hub self-healing would immediately restore the Git
-version and undo the move.
-
-Use `--no-push` only when you intentionally want to review the local commit before
-pushing it:
-
-```bash
-./scripts/scenario.sh secondary --no-push
-git push
-```
-
-## Return to the primary cluster
+## Scenarios
 
 ```bash
 ./scripts/scenario.sh primary
-```
-
-## Expand to both clusters
-
-```bash
+./scripts/scenario.sh secondary
 ./scripts/scenario.sh active-active
+./scripts/scenario.sh auto-failover
+./scripts/scenario.sh remove
 ```
 
-## Availability-driven single-cluster failover mode
+Each scenario copies the appropriate Placement into the Git-managed manifest, commits it, pushes it and waits for reconciliation. Use `--no-push` to inspect the commit before pushing.
+
+### Availability-driven single-cluster failover mode
+
+Activate a single-cluster Placement that can select either role:
 
 ```bash
 ./scripts/scenario.sh auto-failover
 ```
 
-This sets `numberOfClusters: 1` across both eligible regions. The workload Placement has no unavailability tolerations, so unavailable/unreachable clusters are ineligible. The separate registration Placement does tolerate temporary unavailability so both destinations remain registered with Argo CD.
+This mode does not move the workload merely because a pod fails. ACM Placement evaluates managed-cluster eligibility. The failover test therefore applies the same `cluster.open-cluster-management.io/unreachable:NoSelect` taint used for an unreachable managed cluster.
 
-The scheduler selects an eligible cluster; this scenario does not promise a permanent primary preference. Use explicit `primary` and `secondary` scenarios for deterministic planned movement.
-
-## Remove the workload everywhere
+Start the automated test without naming a cluster; the script discovers the currently selected destination:
 
 ```bash
-./scripts/scenario.sh remove
+./scripts/failover.sh
 ```
 
-## Monitor reconciliation
+It verifies the scenario, taints the selected ManagedCluster, waits for the PlacementDecision to move, and prints the resulting Argo CD state. A specific selected cluster can be supplied as a guard:
 
 ```bash
-watch -n 2 './scripts/status.sh'
+./scripts/failover.sh <managedcluster-name>
 ```
 
-See `docs/day2-runbook.md` and `docs/presenter-script.md` for the complete workshop sequence.
+Observe the control loop:
 
-# Clean reset and end-to-end retest
+```bash
+./scripts/watch-demo.sh
+```
 
-The demo is stateless, so the safest way to remove tracking conflicts from an
-older iteration is to prune the generated Applications, remove the hub demo
-objects, and delete the `portability-demo` namespace on both managed clusters.
+Recover the failed cluster by discovery:
 
-## Standard reset
+```bash
+./scripts/recover.sh
+```
 
-This keeps the one-time `demo-clusters` ManagedClusterSet and binding:
+or explicitly:
+
+```bash
+./scripts/recover.sh <managedcluster-name>
+```
+
+The `Steady` prioritizer may keep the workload on the surviving cluster after recovery. This avoids oscillation. Perform a controlled failback with:
+
+```bash
+./scripts/scenario.sh primary
+```
+
+During a genuine network partition, hub-based Argo CD can deploy to the surviving cluster but cannot guarantee immediate pruning from the unreachable cluster. Stateful applications additionally require data replication, fencing and split-brain protection. Client traffic also needs a global ingress or DNS failover layer.
+
+## Status and preflight
+
+```bash
+./scripts/status.sh
+./scripts/watch-demo.sh 3
+./scripts/preflight.sh
+```
+
+The status view discovers cluster roles, availability, taints, Placement decisions and generated Argo CD Applications dynamically.
+
+## Cleanup and retest
+
+Standard reset keeps the ManagedClusterSet and role assignments:
 
 ```bash
 ./scripts/cleanup-demo.sh
 ```
 
-The script commits and pushes the `remove` scenario, waits for generated Argo CD
-Applications to disappear, removes remaining hub resources, and deletes the demo
-namespace when kubeconfig contexts named `cluster1-sno` and `cluster2-sno` exist.
-Override context names when necessary:
-
-```bash
-CLUSTER1_CONTEXT=my-cluster1-context \
-CLUSTER2_CONTEXT=my-cluster2-context \
-./scripts/cleanup-demo.sh
-```
-
-If those contexts are unavailable, log in to each managed cluster and run:
-
-```bash
-oc delete namespace portability-demo --ignore-not-found
-```
-
-## Full platform-prerequisite reset
-
-To also remove the ManagedClusterSetBinding, cluster membership labels and the
-ManagedClusterSet, run as cluster-admin:
+Full reset also removes cluster-set membership and role labels:
 
 ```bash
 ./scripts/cleanup-demo.sh --full
 ```
 
-Use `--full` only when you want to demonstrate the administrator bootstrap from
-the beginning.
-
-## Retest from the beginning
+Retest:
 
 ```bash
-# 1. Validate or recreate administrator prerequisites
-./scripts/bootstrap-demo.sh
-
-# 2. Recreate the root Argo CD Application
+./scripts/bootstrap-demo.sh --primary <cluster-a> --secondary <cluster-b>
+./scripts/configure-repository.sh
+git add . && git commit -m "Configure demo" && git push
 oc apply -f bootstrap/portability-demo-hub.yaml
-
-# 3. Watch hub reconciliation
-watch -n 2 './scripts/status.sh'
-
-# 4. The cleanup leaves Git in the remove scenario; deploy the baseline
 ./scripts/scenario.sh primary
-
-# 5. Exercise mobility
-./scripts/scenario.sh secondary
-./scripts/scenario.sh active-active
-./scripts/scenario.sh auto-failover
-./scripts/scenario.sh remove
+./scripts/watch-demo.sh
 ```
 
-Always use the fully qualified Argo CD API name, for example:
+## Repository layout
 
-```bash
-oc get applications.argoproj.io -n openshift-gitops
+```text
+bootstrap/       Root Argo CD Application
+charts/          Portable demonstration workload
+hub/             ACM Placement, GitOpsCluster and ApplicationSet
+prerequisites/   ManagedClusterSet and binding
+scripts/         Setup, scenarios, failover, recovery and cleanup
+docs/            Presenter and troubleshooting guidance
 ```
 
-The short resource name `application` can resolve to `applications.app.k8s.io`
-instead of the Argo CD CRD.
+## Security and production boundaries
 
-# Other integration considerations
-
-Apart from ACM, the OpenShift GitOps Operator and cluster-set preparation, confirm:
-
-- **Network reachability:** the hub’s Argo CD controller must be able to reach managed-cluster API endpoints in the selected push model.
-- **Repository access:** configure repository credentials if the Git repository is private.
-- **Image access:** managed clusters must be able to pull the workload image; mirror it for disconnected environments.
-- **Argo CD project/RBAC:** this lab uses the `default` project. Production environments should use a dedicated AppProject with constrained repositories, destinations and resource kinds.
-- **ManagedServiceAccount:** use the ACM-supported token management model appropriate to your product version and push/pull design; validate the required add-on if your GitOpsCluster configuration depends on it.
-- **Application DNS/traffic:** relocation creates cluster-local Routes. A stable global hostname and automated traffic steering require an external DNS/GSLB layer and health checks.
-- **Secrets:** do not keep application secrets in plain Git. Use an approved secret-management pattern such as External Secrets, Vault or sealed/encrypted GitOps secrets.
-- **Observability:** use ACM observability and application metrics/logs to measure rollout and recovery time. This repository provides status commands, not a production SLO stack.
-
-# Workload security and reliability
-
-The chart uses a pinned unprivileged NGINX runtime on port `8080`, OpenShift-compatible restricted security settings, all Linux capabilities dropped, no service-account token, health probes, resource requests/limits, rolling updates and a ConfigMap checksum that triggers rollout when page content changes.
-
-# Stateful DR boundary
-
-The automatic failover scenario redeploys a **stateless** application. It does not move a database or persistent volume. True stateful disaster recovery needs storage replication, consistency controls, fencing, recovery orchestration and rehearsed operational procedures. In the Red Hat stack this commonly involves ODF regional or metro DR, VolSync where applicable, `DRPolicy` and `DRPlacementControl`.
-
-# Validation and troubleshooting
-
-```bash
-./scripts/validate.sh
-./scripts/bootstrap-demo.sh --check-only
-./scripts/status.sh
-```
-
-Common checks:
-
-```bash
-oc get managedclustersetbindings -n openshift-gitops
-oc get placementdecisions -n openshift-gitops
-oc get gitopscluster portability-demo-gitops -n openshift-gitops -o yaml
-oc get secrets -n openshift-gitops -l argocd.argoproj.io/secret-type=cluster
-oc describe applicationset portability-demo -n openshift-gitops
-oc get applications.argoproj.io -n openshift-gitops
-```
-
-See `docs/troubleshooting.md` for detailed fault isolation.
+The sample workload runs non-root, drops Linux capabilities, uses RuntimeDefault seccomp, resource limits and health probes. The repository demonstrates control-plane portability, not a complete disaster-recovery platform. Production designs must address persistent data, secrets, identity, networking, DNS, traffic draining, fencing, RPO and RTO.

@@ -4,19 +4,22 @@ metadata:
   name: portability-demo-targets
   namespace: openshift-gitops
   labels:
-    demo.portability/component: workload-placement
+    demo.portability/application: portability-demo
 spec:
   numberOfClusters: 1
   predicates:
     - requiredClusterSelector:
         labelSelector:
           matchExpressions:
-            - key: vendor
+            - key: cluster.open-cluster-management.io/clusterset
               operator: In
-              values: [OpenShift]
-            - key: cloud
+              values: [demo-clusters]
+            - key: demo.portability/role
               operator: In
-              values: [Amazon]
-            - key: region
-              operator: In
-              values: [eu-west-3, eu-west-2]
+              values: [primary, secondary]
+  prioritizerPolicy:
+    mode: Exact
+    configurations:
+      - scoreCoordinate:
+          builtIn: Steady
+        weight: 1

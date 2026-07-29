@@ -18,8 +18,8 @@ oc get managedclusters \
 
 Highlight:
 
-- `cluster1-sno`: `eu-west-3`
-- `cluster2-sno`: `eu-west-2`
+- `<primary-cluster>`: `primary role`
+- `<secondary-cluster>`: `secondary role`
 - both belong to `demo-clusters`
 - the hub is excluded from workload placement
 
@@ -31,17 +31,17 @@ oc get placementdecision -n openshift-gitops \
   -o yaml
 ```
 
-Open the route on `cluster1-sno`. The page should visibly report
-`cluster1-sno` and `eu-west-3`.
+Open the route on `<primary-cluster>`. The page should visibly report
+`<primary-cluster>` and `primary role`.
 
-## Scene 3: Move to eu-west-2
+## Scene 3: Move to secondary role
 
 ```bash
-cp hub/placement-scenarios/eu-west-2.yaml \
+cp hub/placement-scenarios/secondary role.yaml \
   hub/30-application-placement.yaml
 
 git add hub/30-application-placement.yaml
-git commit -m "Move application to eu-west-2"
+git commit -m "Move application to secondary role"
 git push
 ```
 
@@ -49,9 +49,9 @@ Narrate the chain:
 
 1. ACM recalculates the PlacementDecision.
 2. ApplicationSet removes the old generated Application.
-3. Argo CD prunes the workload from `cluster1-sno`.
-4. ApplicationSet creates a destination for `cluster2-sno`.
-5. Argo CD deploys the same chart to `cluster2-sno`.
+3. Argo CD prunes the workload from `<primary-cluster>`.
+4. ApplicationSet creates a destination for `<secondary-cluster>`.
+5. Argo CD deploys the same chart to `<secondary-cluster>`.
 
 ## Scene 4: Expand to both regions
 

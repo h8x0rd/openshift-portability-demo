@@ -8,7 +8,7 @@ All commands run against the ACM hub. Scenario commands update Git, commit, and 
 ./scripts/scenario.sh primary
 ```
 
-Expected decision: `cluster1-sno`. Open its Route and point out the cluster and region identity rendered by the same Helm chart.
+Expected decision: `<primary-cluster>`. Open its Route and point out the cluster and region identity rendered by the same Helm chart.
 
 ## Scenario 2 — Planned relocation
 
@@ -16,7 +16,7 @@ Expected decision: `cluster1-sno`. Open its Route and point out the cluster and 
 ./scripts/scenario.sh secondary
 ```
 
-ACM updates the PlacementDecision. ApplicationSet creates the application for `cluster2-sno`; Argo CD deploys it and prunes the former generated Application after the selection changes.
+ACM updates the PlacementDecision. ApplicationSet creates the application for `<secondary-cluster>`; Argo CD deploys it and prunes the former generated Application after the selection changes.
 
 This demonstrates application mobility, not storage migration. The demo workload is stateless.
 

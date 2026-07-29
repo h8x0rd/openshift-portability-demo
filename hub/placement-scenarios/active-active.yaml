@@ -6,7 +6,7 @@ metadata:
   labels:
     demo.portability/application: portability-demo
 spec:
-  numberOfClusters: 1
+  numberOfClusters: 2
   predicates:
     - requiredClusterSelector:
         labelSelector:
@@ -16,7 +16,7 @@ spec:
               values: [demo-clusters]
             - key: demo.portability/role
               operator: In
-              values: [primary]
+              values: [primary, secondary]
   prioritizerPolicy:
     mode: Exact
     configurations:

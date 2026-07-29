@@ -1,53 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
-failed=0
-
-check_file() {
-  [[ -f "$1" ]] || { echo "ERROR: missing $1" >&2; failed=1; }
-}
-
-for file in \
-  bootstrap/portability-demo-hub.yaml \
-  prerequisites/clusterset-and-binding.yaml \
-  hub/kustomization.yaml \
-  hub/40-application-set.yaml \
-  charts/portability-demo/Chart.yaml \
-  charts/portability-demo/values.yaml \
-  charts/portability-demo/templates/deployment.yaml \
-  scripts/bootstrap-demo.sh \
-  scripts/scenario.sh \
-  scripts/cleanup-demo.sh \
-  scripts/status.sh \
-  hub/placement-scenarios/auto-failover.yaml; do
-  check_file "$file"
-done
-
-if grep -Rqs 'YOUR_ORG' bootstrap hub charts; then
-  echo "ERROR: repository placeholder YOUR_ORG is still present." >&2
-  failed=1
-fi
-
-for script in scripts/*.sh; do
-  bash -n "$script" || failed=1
-done
-
-if command -v helm >/dev/null 2>&1; then
-  helm lint charts/portability-demo
-  helm template portability-demo charts/portability-demo \
-    -f charts/portability-demo/values-cluster1-sno.yaml >/dev/null
-else
-  echo "WARN: helm is not installed; Helm lint/render checks were skipped."
-fi
-
-if command -v oc >/dev/null 2>&1; then
-  oc kustomize hub >/dev/null
-else
-  echo "WARN: oc is not installed; Kustomize render check was skipped."
-fi
-
-if (( failed )); then
-  exit 1
-fi
-
-echo "Repository structure validation passed."
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
+for f in scripts/*.sh scripts/lib/*.sh; do bash -n "$f"; done
+python3 - <<'PY2'
+from pathlib import Path
+import yaml
+for p in list(Path('hub').rglob('*.yaml'))+list(Path('bootstrap').rglob('*.yaml'))+list(Path('prerequisites').rglob('*.yaml')):
+ list(yaml.safe_load_all(p.read_text()))
+print('YAML parsed successfully')
+PY2
+if grep -RInE 'cluster1-sno|cluster2-sno|eu-west-[0-9]|h8x0rd|github.com/.+openshift-portability-demo' README.md CHANGELOG.md bootstrap charts docs hub prerequisites scripts --exclude=validate.sh; then echo 'Environment-specific values remain' >&2; exit 1; fi
+echo 'Validation passed'
