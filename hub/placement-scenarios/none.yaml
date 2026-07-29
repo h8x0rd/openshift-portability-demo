@@ -10,12 +10,5 @@ spec:
     - requiredClusterSelector:
         labelSelector:
           matchExpressions:
-            - key: vendor
-              operator: In
-              values: [OpenShift]
-            - key: cloud
-              operator: In
-              values: [Amazon]
-            - key: region
-              operator: In
-              values: [eu-west-3]
+            - key: demo.portability/disabled
+              operator: Exists

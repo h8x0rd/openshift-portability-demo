@@ -14,7 +14,11 @@ for file in \
   hub/40-application-set.yaml \
   charts/portability-demo/Chart.yaml \
   charts/portability-demo/values.yaml \
-  charts/portability-demo/templates/deployment.yaml; do
+  charts/portability-demo/templates/deployment.yaml \
+  scripts/bootstrap-demo.sh \
+  scripts/scenario.sh \
+  scripts/status.sh \
+  hub/placement-scenarios/auto-failover.yaml; do
   check_file "$file"
 done
 

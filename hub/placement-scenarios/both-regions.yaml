@@ -3,6 +3,8 @@ kind: Placement
 metadata:
   name: portability-demo-targets
   namespace: openshift-gitops
+  labels:
+    demo.portability/component: workload-placement
 spec:
   predicates:
     - requiredClusterSelector:
@@ -10,14 +12,10 @@ spec:
           matchExpressions:
             - key: vendor
               operator: In
-              values:
-                - OpenShift
+              values: [OpenShift]
             - key: cloud
               operator: In
-              values:
-                - Amazon
+              values: [Amazon]
             - key: region
               operator: In
-              values:
-                - eu-west-3
-                - eu-west-2
+              values: [eu-west-3, eu-west-2]
