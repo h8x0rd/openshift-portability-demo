@@ -19,4 +19,4 @@ spec:
             - key: region
               operator: In
               values:
-                - eu-west-3
+                - eu-west-2
