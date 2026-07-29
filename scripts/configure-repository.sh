@@ -12,10 +12,12 @@ placeholder = "https://github.com/YOUR_ORG/openshift-portability-demo.git"
 files = [
     Path("hub/40-application-set.yaml"),
     Path("bootstrap/portability-demo-hub.yaml"),
+    Path("charts/portability-demo/values.yaml"),
 ]
 
 for path in files:
     text = path.read_text()
-    path.write_text(text.replace(placeholder, repo))
+    updated = text.replace(placeholder, repo)
+    path.write_text(updated)
     print(f"Configured repository URL in {path}")
 PY

@@ -6,60 +6,74 @@
 the workload. This repository contains one Helm chart. ACM decides which AWS
 region should run it, and OpenShift GitOps reconciles that decision.”
 
-## Scene 1: Confirm readiness
+## Scene 1: Show fleet readiness
 
 ```bash
-oc get managedclusters -L region -L cloud -L vendor
+oc get managedclusters \
+  -L region \
+  -L cloud \
+  -L vendor \
+  -L cluster.open-cluster-management.io/clusterset
 ```
 
-Confirm:
+Highlight:
 
-- `cluster1-sno`: `AVAILABLE=True`, `region=eu-west-3`
-- `cluster2-sno`: `AVAILABLE=True`, `region=eu-west-2`
+- `cluster1-sno`: `eu-west-3`
+- `cluster2-sno`: `eu-west-2`
+- both belong to `demo-clusters`
+- the hub is excluded from workload placement
 
-## Scene 2: Start in eu-west-3
-
-Show that `hub/30-application-placement.yaml` selects `eu-west-3`.
-
-Open the application route on `cluster1-sno` and point out the rendered cluster
-name and AWS region.
-
-## Scene 3: Relocate to eu-west-2
+## Scene 2: Show the current decision
 
 ```bash
-cp hub/placement-scenarios/eu-west-2.yaml hub/30-application-placement.yaml
+oc get placementdecision -n openshift-gitops \
+  -l cluster.open-cluster-management.io/placement=portability-demo-targets \
+  -o yaml
+```
+
+Open the route on `cluster1-sno`. The page should visibly report
+`cluster1-sno` and `eu-west-3`.
+
+## Scene 3: Move to eu-west-2
+
+```bash
+cp hub/placement-scenarios/eu-west-2.yaml \
+  hub/30-application-placement.yaml
+
 git add hub/30-application-placement.yaml
-git commit -m "Move portability demo to eu-west-2"
+git commit -m "Move application to eu-west-2"
 git push
 ```
 
-Narrate:
+Narrate the chain:
 
 1. ACM recalculates the PlacementDecision.
-2. `cluster1-sno` leaves the decision.
-3. `cluster2-sno` enters the decision.
-4. ApplicationSet removes the old generated Application.
-5. ApplicationSet creates the new generated Application.
-6. Argo CD deploys the same Helm chart to `cluster2-sno`.
+2. ApplicationSet removes the old generated Application.
+3. Argo CD prunes the workload from `cluster1-sno`.
+4. ApplicationSet creates a destination for `cluster2-sno`.
+5. Argo CD deploys the same chart to `cluster2-sno`.
 
-## Scene 4: Expand across both regions
+## Scene 4: Expand to both regions
 
 ```bash
-cp hub/placement-scenarios/both-regions.yaml hub/30-application-placement.yaml
+cp hub/placement-scenarios/both-regions.yaml \
+  hub/30-application-placement.yaml
+
 git add hub/30-application-placement.yaml
-git commit -m "Expand portability demo across both AWS regions"
+git commit -m "Expand application across both AWS regions"
 git push
 ```
 
-Show both generated Applications healthy.
+Show two healthy generated Applications and both Routes.
 
-## Scene 5: One application update
+## Scene 5: Demonstrate one application update
 
 Change `application.version` or `application.message` in `values.yaml`, commit,
-and push. Show both selected clusters reconcile the same change.
+and push. Explain that the ConfigMap checksum causes a controlled rollout on
+every selected destination.
 
 ## Closing
 
-“ACM owns fleet selection. Git owns application and placement intent. Argo CD
-owns reconciliation. The application can move between AWS regions or run in
-both without maintaining separate workload definitions.”
+“ACM owns fleet selection. Git owns placement and application intent. Argo CD
+owns reconciliation. The application can move or expand without maintaining
+separate workload manifests.”

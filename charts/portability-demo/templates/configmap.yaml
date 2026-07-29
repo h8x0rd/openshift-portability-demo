@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: portability-demo-content
+  name: {{ include "portability-demo.fullname" . }}-content
   labels:
     {{- include "portability-demo.labels" . | nindent 4 }}
 data:
@@ -11,59 +11,96 @@ data:
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
+      <meta name="color-scheme" content="dark">
       <title>{{ .Values.application.name }}</title>
       <style>
-        :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+        :root {
+          color-scheme: dark;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          --red: #ee0000;
+          --ink: #080a0f;
+          --panel: rgba(255,255,255,.065);
+          --line: rgba(255,255,255,.14);
+          --muted: #abb2c0;
+          --green: #73e6a1;
+        }
         * { box-sizing: border-box; }
         body {
-          margin: 0; min-height: 100vh; color: #f7f7f8;
+          margin: 0;
+          min-height: 100vh;
+          color: #fff;
           background:
-            radial-gradient(circle at 15% 15%, rgba(238,0,0,.20), transparent 34rem),
-            radial-gradient(circle at 85% 85%, rgba(90,80,230,.22), transparent 34rem),
-            #090b10;
-          display: grid; place-items: center; padding: 32px;
+            radial-gradient(circle at 12% 8%, rgba(238,0,0,.26), transparent 32rem),
+            radial-gradient(circle at 88% 88%, rgba(82,70,230,.25), transparent 34rem),
+            linear-gradient(145deg, #080a0f, #10141d);
+          display: grid;
+          place-items: center;
+          padding: 30px;
         }
-        .shell { width: min(980px,100%); }
-        .eyebrow { letter-spacing: .18em; text-transform: uppercase; color: #ff8080; font-size: .75rem; }
-        h1 { margin: .5rem 0; font-size: clamp(2.2rem,7vw,5.8rem); line-height: .95; }
-        .lead { color: #b8bdc9; font-size: clamp(1rem,2vw,1.25rem); max-width: 44rem; }
-        .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:34px; }
-        .card { background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.12);
-          border-radius:18px; padding:18px; backdrop-filter:blur(16px); }
-        .label { color:#8f96a6; font-size:.75rem; text-transform:uppercase; letter-spacing:.12em; }
-        .value { margin-top:8px; font-size:1.1rem; overflow-wrap:anywhere; }
-        .status { display:inline-flex; align-items:center; gap:9px; margin-top:28px; padding:10px 14px;
-          border:1px solid rgba(124,255,168,.3); border-radius:999px; color:#9affbd;
-          background:rgba(43,180,90,.09); }
-        .dot { width:9px; height:9px; border-radius:50%; background:#57e389;
-          box-shadow:0 0 18px #57e389; animation:pulse 1.7s infinite; }
-        footer { margin-top:28px; color:#727989; font-size:.85rem; display:flex; justify-content:space-between; gap:20px; }
+        .shell { width: min(1080px,100%); }
+        .topline { display:flex; justify-content:space-between; gap:18px; align-items:center; }
+        .brand { letter-spacing:.17em; text-transform:uppercase; color:#ff8c8c; font-size:.75rem; }
+        .live { display:inline-flex; align-items:center; gap:9px; color:var(--green); font-size:.88rem; }
+        .dot { width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 18px var(--green); animation:pulse 1.8s infinite; }
+        h1 { margin:28px 0 12px; font-size:clamp(3rem,8vw,7rem); line-height:.88; letter-spacing:-.055em; }
+        .lead { color:var(--muted); font-size:clamp(1rem,2.2vw,1.3rem); max-width:52rem; }
+        .identity { display:grid; grid-template-columns:1.25fr .75fr; gap:16px; margin-top:34px; }
+        .hero-card,.card { border:1px solid var(--line); background:var(--panel); border-radius:22px; backdrop-filter:blur(16px); }
+        .hero-card { padding:26px; min-height:220px; display:flex; flex-direction:column; justify-content:space-between; }
+        .cluster { font-size:clamp(2rem,5vw,4rem); font-weight:700; overflow-wrap:anywhere; }
+        .region { font-size:1.15rem; color:#ffaaaa; }
+        .side { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        .card { padding:20px; min-height:102px; }
+        .label { color:#858e9f; text-transform:uppercase; letter-spacing:.12em; font-size:.7rem; }
+        .value { margin-top:9px; font-size:1.04rem; overflow-wrap:anywhere; }
+        .flow { margin-top:16px; padding:18px 20px; border:1px solid var(--line); border-radius:18px; color:#c3c9d4; display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+        .step { color:#fff; }
+        .arrow { color:#ff7d7d; }
+        footer { margin-top:24px; display:flex; justify-content:space-between; gap:20px; color:#7e8798; font-size:.84rem; }
         @keyframes pulse { 50% { opacity:.35; transform:scale(.82); } }
-        @media(max-width:760px){ .grid{grid-template-columns:1fr 1fr} footer{flex-direction:column} }
-        @media(max-width:440px){ .grid{grid-template-columns:1fr} body{padding:20px} }
+        @media(max-width:780px){ .identity{grid-template-columns:1fr}.topline,footer{align-items:flex-start;flex-direction:column}.side{grid-template-columns:1fr 1fr} }
+        @media(max-width:480px){ body{padding:20px}.side{grid-template-columns:1fr} }
       </style>
     </head>
     <body>
       <main class="shell">
-        <div class="eyebrow">Red Hat Advanced Cluster Management + OpenShift GitOps</div>
-        <h1>Application<br>Portability</h1>
+        <div class="topline">
+          <div class="brand">Red Hat Advanced Cluster Management + OpenShift GitOps</div>
+          <div class="live"><span class="dot"></span>Healthy and reconciled</div>
+        </div>
+        <h1>Move intent.<br>Not manifests.</h1>
         <p class="lead">{{ .Values.application.message }}</p>
-        <div class="status"><span class="dot"></span> Healthy and GitOps managed</div>
-        <section class="grid">
-          <article class="card"><div class="label">Running on</div><div class="value">{{ .Values.cluster.name }}</div></article>
-          <article class="card"><div class="label">Region</div><div class="value">{{ .Values.cluster.region }}</div></article>
-          <article class="card"><div class="label">Environment</div><div class="value">{{ .Values.cluster.environment }}</div></article>
-          <article class="card"><div class="label">Application</div><div class="value">v{{ .Values.application.version }}</div></article>
+        <section class="identity">
+          <article class="hero-card">
+            <div>
+              <div class="label">Currently running on</div>
+              <div class="cluster">{{ .Values.cluster.name }}</div>
+            </div>
+            <div class="region">AWS {{ .Values.cluster.region }}</div>
+          </article>
+          <div class="side">
+            <article class="card"><div class="label">Environment</div><div class="value">{{ .Values.cluster.environment }}</div></article>
+            <article class="card"><div class="label">Application</div><div class="value">v{{ .Values.application.version }}</div></article>
+            <article class="card"><div class="label">Git revision</div><div class="value">{{ .Values.application.gitRevision }}</div></article>
+            <article class="card"><div class="label">Runtime</div><div class="value">Non-root NGINX :8080</div></article>
+          </div>
         </section>
+        <div class="flow" aria-label="GitOps control flow">
+          <span class="step">Git</span><span class="arrow">→</span>
+          <span class="step">ACM Placement</span><span class="arrow">→</span>
+          <span class="step">ApplicationSet</span><span class="arrow">→</span>
+          <span class="step">OpenShift</span>
+        </div>
         <footer>
-          <span>One chart • Placement-driven destinations • Automated prune and self-heal</span>
+          <span>{{ .Values.application.gitRepository }}</span>
           <span id="clock"></span>
         </footer>
       </main>
       <script>
         const clock = document.getElementById('clock');
         const update = () => clock.textContent = new Date().toLocaleString();
-        update(); setInterval(update, 1000);
+        update();
+        setInterval(update, 1000);
       </script>
     </body>
     </html>

@@ -1,62 +1,139 @@
 # Troubleshooting
 
-## No PlacementDecision
+## `oc get application` reports `applications.app.k8s.io` not found
 
-Check:
+Use the fully qualified Argo CD CRD:
 
 ```bash
-oc describe placement portability-demo-targets -n openshift-gitops
-oc get managedclusters --show-labels
+oc get applications.argoproj.io -n openshift-gitops
+```
+
+## Bootstrap is OutOfSync on ManagedClusterSetBinding
+
+Symptom:
+
+```text
+user system:serviceaccount:openshift-gitops:openshift-gitops-argocd-application-controller
+is not allowed to bind cluster set demo-clusters
+```
+
+Fix:
+
+```bash
+oc apply -f prerequisites/clusterset-and-binding.yaml
+```
+
+The binding is deliberately excluded from `hub/kustomization.yaml` because it
+must be created by a suitably privileged platform administrator.
+
+## GitOpsCluster resolves zero managed clusters
+
+Check membership and binding:
+
+```bash
+oc get managedclusters \
+  -L cluster.open-cluster-management.io/clusterset \
+  -L region
+
 oc get managedclustersetbinding -n openshift-gitops
+oc describe placement portability-demo-registered-clusters -n openshift-gitops
 ```
 
-The selected clusters must belong to the bound `ManagedClusterSet`.
+Both SNO clusters must belong to `demo-clusters` and that set must be bound to
+`openshift-gitops`.
 
-## PlacementDecision exists but no Application
-
-Check:
+## PlacementDecision exists but no generated Application
 
 ```bash
-oc get applicationset portability-demo -n openshift-gitops -o yaml
-oc logs -n openshift-gitops deploy/openshift-gitops-applicationset-controller
+oc get applicationsets.argoproj.io portability-demo \
+  -n openshift-gitops -o yaml
+
+oc logs -n openshift-gitops \
+  deployment/openshift-gitops-applicationset-controller \
+  --tail=300
 ```
 
-Confirm that the ACM placement generator ConfigMap exists and that the
-ApplicationSet controller has access to PlacementDecision resources.
+Verify that the `acm-placement` ConfigMap exists and that the target Placement
+has at least one decision.
 
-## Application exists but cluster is unknown to Argo CD
-
-Check:
+## Application exists but destination cluster is unknown
 
 ```bash
-oc get gitopscluster portability-demo-gitops -n openshift-gitops -o yaml
-oc get secret -n openshift-gitops   -l argocd.argoproj.io/secret-type=cluster
+oc get gitopscluster portability-demo-gitops \
+  -n openshift-gitops -o yaml
+
+oc get secrets -n openshift-gitops \
+  -l argocd.argoproj.io/secret-type=cluster
 ```
 
-Confirm the registration Placement includes the cluster and that the
-`GitOpsCluster` reports successful reconciliation.
+The registration Placement should select both SNO clusters and the
+`GitOpsCluster` should report both as registered.
 
-## Cluster identity does not render
+## Pod prints S2I instructions
 
-Confirm that the generated Argo CD Application contains the expected Helm
-parameters:
+The old chart used `registry.access.redhat.com/ubi9/nginx-124`, which is an S2I
+builder image. Version 2 uses:
+
+```text
+nginxinc/nginx-unprivileged:1.28.1-alpine
+```
+
+Confirm the rendered Deployment:
 
 ```bash
-oc get application -n openshift-gitops   -l demo.portability/application=portability-demo -o yaml
+oc --context cluster1-sno get deployment portability-demo \
+  -n portability-demo \
+  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 ```
 
-The cluster name and API server are supplied by the ACM placement generator.
-Region and environment are deliberately static in the starter manifest. For
-richer per-cluster metadata, add a Git generator and combine it with the
-placement generator by using an ApplicationSet matrix generator.
+If the old image remains, verify that the Git change was pushed and hard-refresh
+the generated Argo CD Application.
+
+## Pod is in ImagePullBackOff
+
+```bash
+oc --context cluster1-sno describe pod \
+  -n portability-demo \
+  -l app.kubernetes.io/name=portability-demo
+```
+
+Confirm that the SNO cluster can reach Docker Hub or mirror the image into an
+accessible registry and change `image.repository` and `image.tag` in
+`values.yaml`.
+
+## Pod is rejected by SCC
+
+Inspect the event:
+
+```bash
+oc --context cluster1-sno get events \
+  -n portability-demo \
+  --sort-by=.lastTimestamp
+```
+
+The chart does not specify a fixed UID and is designed for OpenShift's restricted
+SCC. Do not add `runAsUser: 101`; let OpenShift assign a namespace UID.
 
 ## Route returns 503
 
-Check:
-
 ```bash
-oc -n portability-demo get deploy,pod,svc,route
-oc -n portability-demo describe deploy portability-demo
+oc --context cluster1-sno get deploy,pod,svc,endpoints,route \
+  -n portability-demo
+
+oc --context cluster1-sno describe deployment portability-demo \
+  -n portability-demo
 ```
 
-Confirm the selected UBI nginx image tag is available in your environment.
+The Service target port is the named port `http`, which maps to container port
+`8080`.
+
+## HTML changed but the pod did not restart
+
+The Deployment includes a checksum of `configmap.yaml` in the pod-template
+annotations. Confirm that the new commit reached the generated Application:
+
+```bash
+oc get applications.argoproj.io portability-demo-cluster1-sno \
+  -n openshift-gitops \
+  -o jsonpath='{.status.sync.revision}{"\n"}'
+```

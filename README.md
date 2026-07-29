@@ -1,73 +1,97 @@
 # OpenShift Application Portability Demo
 
 A GitHub-ready demonstration of moving one application between two AWS-hosted
-OpenShift Single Node OpenShift (SNO) clusters using Red Hat Advanced Cluster
-Management (ACM), OpenShift GitOps, ACM `Placement`, and an Argo CD
+Single Node OpenShift clusters using Red Hat Advanced Cluster Management (ACM),
+OpenShift GitOps, ACM `Placement`, `GitOpsCluster`, and an Argo CD
 `ApplicationSet`.
 
 ## Demo environment
 
-This repository is preconfigured for the following ACM managed clusters:
-
-| Managed cluster | AWS region | ACM labels |
+| Managed cluster | AWS region | Relevant labels |
 |---|---|---|
 | `cluster1-sno` | `eu-west-3` | `region=eu-west-3`, `cloud=Amazon`, `vendor=OpenShift` |
 | `cluster2-sno` | `eu-west-2` | `region=eu-west-2`, `cloud=Amazon`, `vendor=OpenShift` |
 | `local-cluster` | ACM hub | `cloud=Other`, `vendor=OpenShift` |
 
-The hub is deliberately excluded from workload placement because the
-application placement requires both `cloud=Amazon` and one of the configured
-AWS region labels.
+The hub is excluded because workload placement requires `cloud=Amazon` and one
+of the two configured region labels.
 
-## What the audience sees
+## What changed in version 2
 
-The demo application renders a visual cluster identity page showing:
-
-- the ACM managed-cluster name
-- the AWS region
-- the application version
-- the GitOps-managed health message
-- the same application deployed to one or both clusters
-
-The workload is defined once as a Helm chart. ACM controls where it runs.
-OpenShift GitOps continuously reconciles the selected destinations.
+- Replaced the Red Hat S2I NGINX builder image with the unprivileged NGINX
+  runtime image `nginxinc/nginx-unprivileged:1.28.1-alpine`.
+- Runs on container port `8080` under OpenShift's restricted security model.
+- Added startup, readiness, and liveness probes.
+- Added an explicit non-root security context and dropped all Linux capabilities.
+- Disabled service-account token mounting for the demo pod.
+- Added a ConfigMap checksum so page changes trigger a rolling deployment.
+- Added a Helm test pod.
+- Moved the protected `ManagedClusterSetBinding` out of Argo CD management.
+- Added validation and troubleshooting commands using fully qualified Argo CD
+  resource names such as `applications.argoproj.io`.
 
 ## Architecture
 
 ```text
-GitHub repository
-  ├── hub/                         Fleet registration and application placement
-  └── charts/portability-demo/     One portable Helm application
-             |
-             v
-OpenShift GitOps on the ACM hub
-             |
-             +--> ACM Placement --> PlacementDecision
-                         |
-                         v
-                 ApplicationSet generator
-                    /            \
-                   v              v
-       cluster1-sno             cluster2-sno
-       eu-west-3                eu-west-2
+GitHub
+  ├── prerequisites/        One-time platform-administrator resources
+  ├── hub/                  Placement, GitOpsCluster, ApplicationSet
+  └── charts/               One portable Helm workload
+          |
+          v
+OpenShift GitOps on local-cluster
+          |
+          +--> ACM Placement --> PlacementDecision
+                                   |
+                                   v
+                              ApplicationSet
+                               /          \
+                              v            v
+                     cluster1-sno     cluster2-sno
+                      eu-west-3        eu-west-2
 ```
 
-## Important readiness checkpoint
+## Repository layout
 
-Your current cluster output shows both SNO clusters as `AVAILABLE=Unknown`.
-Do not continue with the GitOps deployment until they report `JOINED=True` and
-`AVAILABLE=True`.
+```text
+openshift-portability-demo/
+├── bootstrap/
+│   └── portability-demo-hub.yaml
+├── prerequisites/
+│   └── clusterset-and-binding.yaml
+├── hub/
+│   ├── 10-registration-placement.yaml
+│   ├── 20-gitops-cluster.yaml
+│   ├── 30-application-placement.yaml
+│   ├── 40-application-set.yaml
+│   ├── placement-scenarios/
+│   └── kustomization.yaml
+├── charts/portability-demo/
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   ├── values-cluster1-sno.yaml
+│   ├── values-cluster2-sno.yaml
+│   └── templates/
+├── scripts/
+└── docs/
+```
 
-Check repeatedly with:
+## Prerequisites
+
+- ACM hub with both SNO clusters imported.
+- OpenShift GitOps installed in `openshift-gitops` on the hub.
+- ACM GitOps integration CRDs available.
+- Cluster-admin access for the one-time cluster-set preparation.
+- `oc`, `git`, and `bash`.
+- `helm` is recommended for local linting.
+
+Both SNO clusters should be joined and available:
 
 ```bash
-oc get managedclusters \
-  -L region \
-  -L cloud \
-  -L vendor
+oc get managedclusters -L region -L cloud -L vendor
 ```
 
-The expected state is similar to:
+Expected:
 
 ```text
 NAME            JOINED   AVAILABLE   REGION      CLOUD    VENDOR
@@ -76,95 +100,19 @@ cluster2-sno    True     True        eu-west-2   Amazon   OpenShift
 local-cluster   True     True                    Other    OpenShift
 ```
 
-If either SNO remains `Unknown`, inspect it before continuing:
-
-```bash
-oc describe managedcluster cluster1-sno
-oc describe managedcluster cluster2-sno
-
-oc get klusterletaddonconfig -A
-oc get managedclusteraddon -A
-```
-
-Also verify that each cluster has completed import and can reach the ACM hub.
-
-## Repository layout
-
-```text
-openshift-portability-demo/
-├── README.md
-├── charts/
-│   └── portability-demo/
-│       ├── Chart.yaml
-│       ├── values.yaml
-│       ├── values-cluster1-sno.yaml
-│       ├── values-cluster2-sno.yaml
-│       └── templates/
-├── bootstrap/
-│   └── portability-demo-hub.yaml
-├── hub/
-│   ├── 00-clusterset-binding.yaml
-│   ├── 10-registration-placement.yaml
-│   ├── 20-gitops-cluster.yaml
-│   ├── 30-application-placement.yaml
-│   ├── 40-application-set.yaml
-│   ├── placement-scenarios/
-│   │   ├── eu-west-3.yaml
-│   │   ├── eu-west-2.yaml
-│   │   └── both-regions.yaml
-│   └── kustomization.yaml
-├── scripts/
-│   ├── configure-repository.sh
-│   ├── move.sh
-│   ├── expand.sh
-│   └── clear.sh
-└── docs/
-    ├── demo-script.md
-    └── troubleshooting.md
-```
-
-## How cluster-specific display values work
-
-There is still only one application chart. The ApplicationSet dynamically loads
-one small values file using the selected ACM cluster name:
-
-```yaml
-helm:
-  valueFiles:
-    - 'values-{{name}}.yaml'
-```
-
-Therefore:
-
-```text
-cluster1-sno -> values-cluster1-sno.yaml -> eu-west-3
-cluster2-sno -> values-cluster2-sno.yaml -> eu-west-2
-```
-
-These files contain display metadata only. The Deployments, Services, Routes,
-and application content remain shared.
-
-## Prerequisites
-
-- ACM hub with `cluster1-sno` and `cluster2-sno` successfully imported.
-- Both SNO clusters show `JOINED=True` and `AVAILABLE=True`.
-- OpenShift GitOps installed on the ACM hub.
-- ACM and OpenShift GitOps integration components available.
-- `oc`, `git`, `bash`, and cluster-admin access for initial setup.
-- A `ManagedClusterSet` containing both SNO clusters.
-- The `ManagedClusterSet` bound to the `openshift-gitops` namespace.
-- Network connectivity from the hub/GitOps components to both managed clusters.
-
-## 1. Prepare the GitHub repository
-
-Extract this archive, create a GitHub repository, and replace the placeholder
-repository URL:
+## 1. Configure your Git repository
 
 ```bash
 cd openshift-portability-demo
 
 ./scripts/configure-repository.sh \
-  https://github.com/YOUR_ORG/openshift-portability-demo.git
+  https://github.com/h8x0rd/openshift-portability-demo.git
+```
+
+Confirm that no placeholder remains:
+
+```bash
+grep -R "YOUR_ORG" bootstrap hub charts || true
 ```
 
 Commit and push:
@@ -172,403 +120,279 @@ Commit and push:
 ```bash
 git init
 git add .
-git commit -m "Initial AWS SNO portability demo"
+git commit -m "Deploy OpenShift portability demo v2"
 git branch -M main
 git remote add origin \
-  https://github.com/YOUR_ORG/openshift-portability-demo.git
+  https://github.com/h8x0rd/openshift-portability-demo.git
 git push -u origin main
 ```
 
-## 2. Verify the existing ACM labels
+For an existing clone, simply commit the replaced files and push them.
 
-No custom region labels are required. Confirm the labels already present:
+## 2. Prepare the ManagedClusterSet as cluster administrator
 
-```bash
-oc get managedcluster cluster1-sno \
-  -o jsonpath='{.metadata.labels.region}{"\n"}'
+ACM protects cluster-set binding through the `managedclustersets/bind`
+subresource. The Argo CD application-controller is intentionally not granted
+that permission by this repository.
 
-oc get managedcluster cluster2-sno \
-  -o jsonpath='{.metadata.labels.region}{"\n"}'
-```
-
-Expected output:
-
-```text
-eu-west-3
-eu-west-2
-```
-
-Also verify the cloud and vendor labels:
+Apply the platform prerequisite manually:
 
 ```bash
-oc get managedclusters -L region -L cloud -L vendor
+oc apply -f prerequisites/clusterset-and-binding.yaml
 ```
 
-## 3. Configure the ManagedClusterSet binding
-
-Edit:
-
-```text
-hub/00-clusterset-binding.yaml
-```
-
-Set `spec.clusterSet` to the `ManagedClusterSet` containing `cluster1-sno` and
-`cluster2-sno`:
-
-```yaml
-spec:
-  clusterSet: demo-clusters
-```
-
-Check cluster-set membership with:
+Assign both SNO clusters to the set:
 
 ```bash
-oc get managedclusterset
-oc get managedclusters --show-labels
+oc label managedcluster cluster1-sno \
+  cluster.open-cluster-management.io/clusterset=demo-clusters \
+  --overwrite
+
+oc label managedcluster cluster2-sno \
+  cluster.open-cluster-management.io/clusterset=demo-clusters \
+  --overwrite
 ```
 
-## 4. Configure the GitOpsCluster hub reference
-
-The supplied manifest assumes the ACM hub managed-cluster name is:
-
-```text
-local-cluster
-```
-
-Verify it:
+Verify:
 
 ```bash
-oc get managedcluster local-cluster
+oc get managedclusters \
+  -L cluster.open-cluster-management.io/clusterset \
+  -L region
+
+oc get managedclustersetbinding demo-clusters \
+  -n openshift-gitops
 ```
 
-The relevant section in `hub/20-gitops-cluster.yaml` is:
+## 3. Validate the repository
 
-```yaml
-spec:
-  argoServer:
-    cluster: local-cluster
-    argoNamespace: openshift-gitops
+```bash
+./scripts/validate.sh
 ```
 
-## 5. Review the registration placement
+When Helm is installed, the script also performs `helm lint` and a rendered
+chart check. When `oc` is installed, it renders the hub Kustomization.
 
-`hub/10-registration-placement.yaml` registers only AWS OpenShift clusters in
-the two demo regions with Argo CD:
-
-```yaml
-matchExpressions:
-  - key: vendor
-    operator: In
-    values: [OpenShift]
-  - key: cloud
-    operator: In
-    values: [Amazon]
-  - key: region
-    operator: In
-    values:
-      - eu-west-3
-      - eu-west-2
-```
-
-This excludes `local-cluster` because it has `cloud=Other` and no AWS region.
-
-## 6. Bootstrap GitOps management of the hub resources
-
-The default application destination is `eu-west-3`, which selects
-`cluster1-sno`.
-
-After the repository has been pushed, create the bootstrap Argo CD Application:
+## 4. Bootstrap OpenShift GitOps
 
 ```bash
 oc apply -f bootstrap/portability-demo-hub.yaml
 ```
 
-The bootstrap Application continuously reconciles the `hub/` directory. This
-means later placement commits are applied automatically after `git push`.
-
-For troubleshooting or a non-GitOps bootstrap, the same resources can also be
-applied directly:
+Always use the qualified Argo CD resource name because `application` can resolve
+to the unrelated `applications.app.k8s.io` API:
 
 ```bash
-oc apply -k hub
+oc get applications.argoproj.io \
+  portability-demo-hub \
+  -n openshift-gitops
 ```
 
-Confirm the bootstrap and hub resources:
+Watch the bootstrap status:
 
 ```bash
-oc get application portability-demo-hub -n openshift-gitops
+watch -n 3 'oc get applications.argoproj.io \
+  portability-demo-hub -n openshift-gitops \
+  -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status'
 ```
 
-Then confirm:
+Expected:
 
-```bash
-oc get managedclustersetbinding -n openshift-gitops
-oc get placement -n openshift-gitops
-oc get gitopscluster -n openshift-gitops
-oc get applicationset -n openshift-gitops
+```text
+portability-demo-hub   Synced   Healthy
 ```
 
-Check the registration placement decision:
+## 5. Confirm the ACM/GitOps chain
+
+Registration placement should resolve both SNO clusters:
 
 ```bash
-oc get placementdecision -n openshift-gitops \
+oc get placementdecision \
+  -n openshift-gitops \
   -l cluster.open-cluster-management.io/placement=portability-demo-registered-clusters \
-  -o yaml
+  -o jsonpath='{range .items[*].status.decisions[*]}{.clusterName}{"\n"}{end}'
 ```
 
-Check the application placement decision:
+Expected:
+
+```text
+cluster1-sno
+cluster2-sno
+```
+
+The initial workload placement selects `eu-west-3`:
 
 ```bash
-oc get placementdecision -n openshift-gitops \
+oc get placementdecision \
+  -n openshift-gitops \
   -l cluster.open-cluster-management.io/placement=portability-demo-targets \
-  -o yaml
+  -o jsonpath='{range .items[*].status.decisions[*]}{.clusterName}{"\n"}{end}'
 ```
 
-The initial application decision should contain:
+Expected:
 
 ```text
 cluster1-sno
 ```
 
-## 7. Verify Argo CD cluster registration
-
-Check the generated Argo CD cluster secrets:
+Confirm Argo CD cluster registration:
 
 ```bash
-oc get secrets -n openshift-gitops \
+oc get secrets \
+  -n openshift-gitops \
   -l argocd.argoproj.io/secret-type=cluster
 ```
 
-Then inspect the generated application:
+Confirm generated Applications:
 
 ```bash
-oc get applications -n openshift-gitops \
-  -l demo.portability/application=portability-demo
+oc get applications.argoproj.io \
+  -n openshift-gitops
 ```
 
-The initial application should be named approximately:
+Expected initially:
 
 ```text
+portability-demo-hub
 portability-demo-cluster1-sno
 ```
 
-## Demo method A: fully Git-driven placement
+## 6. Validate the workload on cluster1-sno
 
-This is the recommended presentation because the location change itself is
-stored in Git.
-
-### Start in eu-west-3
-
-Copy the `eu-west-3` scenario over the active placement:
+Use a kubeconfig context that points at `cluster1-sno`:
 
 ```bash
-cp hub/placement-scenarios/eu-west-3.yaml \
-  hub/30-application-placement.yaml
-
-git add hub/30-application-placement.yaml
-git commit -m "Place application in eu-west-3"
-git push
+oc --context cluster1-sno get deploy,pod,svc,route \
+  -n portability-demo
 ```
 
-### Move to eu-west-2
+Watch the rollout:
+
+```bash
+oc --context cluster1-sno rollout status \
+  deployment/portability-demo \
+  -n portability-demo
+```
+
+Get the URL:
+
+```bash
+oc --context cluster1-sno get route portability-demo \
+  -n portability-demo \
+  -o jsonpath='https://{.spec.host}{"\n"}'
+```
+
+The pod now uses a runtime web-server image. It should not print the S2I
+instructions seen with `ubi9/nginx-124`.
+
+## 7. Move the application to eu-west-2
+
+The recommended demonstration is Git-driven:
 
 ```bash
 cp hub/placement-scenarios/eu-west-2.yaml \
   hub/30-application-placement.yaml
 
 git add hub/30-application-placement.yaml
-git commit -m "Move application to eu-west-2"
+git commit -m "Move portability demo to eu-west-2"
 git push
 ```
 
-ACM should change the placement decision from:
+Watch ACM and Argo CD:
 
-```text
-cluster1-sno
+```bash
+watch -n 3 '
+echo "=== TARGETS ==="
+oc get placementdecision -n openshift-gitops \
+  -l cluster.open-cluster-management.io/placement=portability-demo-targets \
+  -o custom-columns=DECISION:.metadata.name,CLUSTERS:.status.decisions[*].clusterName
+
+echo
+echo "=== APPLICATIONS ==="
+oc get applications.argoproj.io -n openshift-gitops \
+  -l demo.portability/application=portability-demo \
+  -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+'
 ```
 
-to:
+The generated Application for `cluster1-sno` is pruned and the same chart is
+deployed to `cluster2-sno`.
 
-```text
-cluster2-sno
-```
-
-ApplicationSet then removes the old Argo CD Application and creates:
-
-```text
-portability-demo-cluster2-sno
-```
-
-### Expand to both regions
+## 8. Expand to both AWS regions
 
 ```bash
 cp hub/placement-scenarios/both-regions.yaml \
   hub/30-application-placement.yaml
 
 git add hub/30-application-placement.yaml
-git commit -m "Expand application across both AWS regions"
+git commit -m "Run portability demo in both AWS regions"
 git push
 ```
 
-The PlacementDecision should now contain both:
+Expected generated Applications:
 
 ```text
-cluster1-sno
-cluster2-sno
+portability-demo-cluster1-sno
+portability-demo-cluster2-sno
 ```
 
-## Demo method B: fast live placement changes
+## Cluster-specific display values
 
-The helper scripts patch the live ACM Placement. They are useful for a quick
-presentation, but these changes are not persisted in Git. Because the bootstrap
-Application continuously manages `hub/`, self-heal can revert a live patch back
-to the value stored in Git. Temporarily disable automated self-heal or use the
-Git-driven method for a predictable presentation.
+The ApplicationSet selects a small values file based on the ACM cluster name:
 
-### Move to cluster1-sno in eu-west-3
-
-```bash
-./scripts/move.sh eu-west-3
+```yaml
+valueFiles:
+  - 'values-{{ .name }}.yaml'
 ```
 
-### Move to cluster2-sno in eu-west-2
-
-```bash
-./scripts/move.sh eu-west-2
-```
-
-### Expand to both SNO clusters
-
-```bash
-./scripts/expand.sh
-```
-
-### Remove all destinations
-
-```bash
-./scripts/clear.sh
-```
-
-Restore the default Git configuration with:
-
-```bash
-oc apply -f hub/30-application-placement.yaml
-```
-
-## Watch the relocation live
-
-Use one terminal for the ACM PlacementDecision:
-
-```bash
-watch -n 2 'oc get placementdecision -n openshift-gitops \
-  -l cluster.open-cluster-management.io/placement=portability-demo-targets \
-  -o custom-columns=DECISION:.metadata.name,CLUSTERS:.status.decisions[*].clusterName'
-```
-
-Use a second terminal for Argo CD Applications:
-
-```bash
-watch -n 2 'oc get applications -n openshift-gitops \
-  -l demo.portability/application=portability-demo \
-  -o custom-columns=APPLICATION:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,DESTINATION:.spec.destination.server'
-```
-
-Use a third terminal to display managed-cluster state:
-
-```bash
-watch -n 3 'oc get managedclusters -L region -L cloud -L vendor'
-```
-
-## Suggested live-demo flow
-
-1. Show `cluster1-sno` in `eu-west-3` and `cluster2-sno` in `eu-west-2` in ACM.
-2. Confirm both clusters are `JOINED=True` and `AVAILABLE=True`.
-3. Show the repository contains one Helm chart.
-4. Show the active Placement selecting `region=eu-west-3`.
-5. Open the application route on `cluster1-sno`.
-6. Point out that the page displays `cluster1-sno` and `eu-west-3`.
-7. Change the Git placement scenario to `eu-west-2` and push.
-8. Watch the PlacementDecision change to `cluster2-sno`.
-9. Watch Argo CD prune the old generated Application and create the new one.
-10. Open the route on `cluster2-sno` and show `cluster2-sno` and `eu-west-2`.
-11. Change to the `both-regions` scenario.
-12. Show both Argo CD Applications healthy simultaneously.
-13. Change the shared application version in `values.yaml`, commit once, and
-    show both clusters receive the update.
-
-## Presenter message
-
-> The application team maintains one portable application definition. ACM
-> translates business placement intent into a cluster decision, and OpenShift
-> GitOps reconciles that decision. Moving from Paris to London, or expanding to
-> both regions, does not require copying or rewriting the application.
-
-## SNO-specific considerations
-
-These clusters are Single Node OpenShift installations:
-
-- Multiple application replicas still run on the same physical or virtual node.
-- Do not describe two replicas on one SNO as node-level high availability.
-- The demo demonstrates cluster-level and regional portability.
-- Keep resource requests small to avoid unnecessary pressure on the SNO node.
-- A stateless application is preferable for the first demonstration.
-
-## Stateful application scope
-
-This repository demonstrates declarative workload redeployment and placement.
-It does not automatically move:
-
-- persistent volume data
-- database state
-- external DNS
-- user sessions
-- message queues
-- secrets held outside GitOps
-
-A production stateful portability demonstration would additionally require
-storage or database replication, backup and restore, secret synchronization,
-and global traffic management.
-
-## Troubleshooting
-
-### No PlacementDecision
-
-```bash
-oc describe placement portability-demo-targets -n openshift-gitops
-oc get managedclusters -L region -L cloud -L vendor
-oc get managedclustersetbinding -n openshift-gitops
-```
-
-Confirm that the SNO clusters belong to the `ManagedClusterSet` bound into the
-`openshift-gitops` namespace.
-
-### Clusters remain AVAILABLE=Unknown
-
-```bash
-oc describe managedcluster cluster1-sno
-oc describe managedcluster cluster2-sno
-oc get managedclusteraddon -A
-```
-
-Resolve cluster import, connectivity, certificate, or add-on problems before
-troubleshooting ApplicationSet.
-
-### PlacementDecision exists but no Argo CD Application
-
-```bash
-oc get applicationset portability-demo -n openshift-gitops -o yaml
-oc get gitopscluster portability-demo-gitops -n openshift-gitops -o yaml
-oc get secrets -n openshift-gitops \
-  -l argocd.argoproj.io/secret-type=cluster
-```
-
-### Application cannot load its values file
-
-The ApplicationSet expects these exact filenames:
+This maps:
 
 ```text
-values-cluster1-sno.yaml
-values-cluster2-sno.yaml
+cluster1-sno -> values-cluster1-sno.yaml -> eu-west-3
+cluster2-sno -> values-cluster2-sno.yaml -> eu-west-2
 ```
 
-The filenames must remain aligned with the ACM managed-cluster names.
+The workload definition remains shared.
+
+## Runtime and security design
+
+The web page is mounted from a ConfigMap into:
+
+```text
+/usr/share/nginx/html/index.html
+```
+
+The runtime listens on port `8080` and the pod:
+
+- runs as non-root without pinning a UID
+- drops all capabilities
+- disables privilege escalation
+- uses `RuntimeDefault` seccomp
+- does not mount a Kubernetes API token
+- has CPU and memory requests and limits
+- uses startup, readiness, and liveness probes
+
+This is intentionally a stateless portability demonstration. It demonstrates
+fleet placement and GitOps reconciliation, not stateful disaster recovery.
+
+## Useful diagnostics
+
+```bash
+oc describe applications.argoproj.io portability-demo-hub \
+  -n openshift-gitops
+
+oc get applicationsets.argoproj.io portability-demo \
+  -n openshift-gitops -o yaml
+
+oc get gitopscluster portability-demo-gitops \
+  -n openshift-gitops -o yaml
+
+oc get placements,placementdecisions \
+  -n openshift-gitops
+
+oc logs -n openshift-gitops \
+  deployment/openshift-gitops-applicationset-controller \
+  --tail=200
+```
+
+See `docs/troubleshooting.md` for symptom-based diagnostics.

@@ -1,20 +1,22 @@
-replicaCount: 2
+replicaCount: 1
 
 image:
-  repository: registry.access.redhat.com/ubi9/nginx-124
-  tag: latest
+  repository: nginxinc/nginx-unprivileged
+  tag: "1.28.1-alpine"
   pullPolicy: IfNotPresent
 
 cluster:
   name: unknown-cluster
   apiServer: unknown
   region: unspecified
-  environment: demo
+  environment: AWS SNO portability demo
 
 application:
-  name: Portability Demo
-  version: "1.0.0"
-  message: One application definition. Any selected OpenShift cluster.
+  name: OpenShift Portability Demo
+  version: "2.0.0"
+  message: One application definition. Placement-driven across OpenShift clusters.
+  gitRepository: https://github.com/h8x0rd/openshift-portability-demo.git
+  gitRevision: main
 
 service:
   port: 8080
@@ -23,6 +25,32 @@ route:
   enabled: true
   tls:
     termination: edge
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  runAsNonRoot: true
+
+probes:
+  startup:
+    failureThreshold: 30
+    periodSeconds: 2
+  readiness:
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 6
+  liveness:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
 
 resources:
   requests:

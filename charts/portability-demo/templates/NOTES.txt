@@ -1,0 +1,4 @@
+The portability demo has been installed.
+
+Route:
+  oc get route {{ include "portability-demo.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='https://{.spec.host}{"\n"}'

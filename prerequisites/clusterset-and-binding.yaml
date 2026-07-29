@@ -1,0 +1,15 @@
+# Apply this file once as a cluster administrator before bootstrapping Argo CD.
+# ACM protects ManagedClusterSetBinding creation through a bind subresource,
+# which the Argo CD application-controller does not receive by default.
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSet
+metadata:
+  name: demo-clusters
+---
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: demo-clusters
+  namespace: openshift-gitops
+spec:
+  clusterSet: demo-clusters
