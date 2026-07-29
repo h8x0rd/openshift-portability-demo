@@ -1,5 +1,19 @@
 # Changelog
 
+## 5.0.1 - 2026-07-29
+
+### Fixed
+
+- Replaced malformed multiline JSONPath expressions with JSON and `jq` based discovery.
+- Corrected `preflight.sh`, `bootstrap-demo.sh`, and shared cluster-discovery helpers.
+- Made preflight read-only, descriptive, and actionable.
+
+### Documentation
+
+- Restored detailed administrator prerequisites and platform validation.
+- Documented the purpose and expected use of `preflight.sh`.
+- Expanded the complete clone, configure, bootstrap, deployment, scenario, failover, cleanup, and troubleshooting workflow.
+
 ## 5.0.0 - 2026-07-29
 
 ### Added

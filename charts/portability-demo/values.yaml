@@ -12,9 +12,9 @@ cluster:
 
 application:
   name: OpenShift Portability Demo
-  version: "5.0.0"
+  version: "5.0.1"
   message: One application definition. Placement-driven across OpenShift clusters.
-  gitRepository: git@github.com:h8x0rd/openshift-portability-demo.git
+  gitRepository: GIT_REPOSITORY_URL
   gitRevision: main
 
 service:
