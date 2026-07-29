@@ -6,9 +6,20 @@ metadata:
   labels:
     demo.portability/application: portability-demo
 spec:
-  numberOfClusters: 0
+  numberOfClusters: 1
   predicates:
     - requiredClusterSelector:
         labelSelector:
-          matchLabels:
-            demo.portability/disabled: "true"
+          matchExpressions:
+            - key: cluster.open-cluster-management.io/clusterset
+              operator: In
+              values: [demo-clusters]
+            - key: demo.portability/role
+              operator: In
+              values: [primary]
+  prioritizerPolicy:
+    mode: Exact
+    configurations:
+      - scoreCoordinate:
+          builtIn: Steady
+        weight: 1
