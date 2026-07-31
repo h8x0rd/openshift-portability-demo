@@ -18,7 +18,7 @@ The repository is deliberately environment-neutral. It contains no fixed managed
 
 > This is a stateless application-mobility demonstration. It does not replicate persistent data or provide application-level disaster recovery by itself.
 
-<div align="center"><img width="800" height="512" alt="acm-gitops-ocp" src="https://github.com/user-attachments/assets/d64b6ccd-6e0b-4c4e-a8fc-cf88db8a09be" /></div>
+<div align="center"><img width="900" height="558" alt="acm-gitops-ocp" src="https://github.com/user-attachments/assets/8be289ff-926b-4e3e-9533-43817709f23e" /></div>
 
 ## Logical topology
 
