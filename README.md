@@ -209,7 +209,7 @@ it configures Argo CD with:
 https://github.com/owner/openshift-portability-demo.git
 ```
 
-Your local `origin` remains SSH, so normal `git pull` and `git push` continue using your SSH key. This conversion avoids relying on `SSH_AUTH_SOCK`: the Argo CD repo-server pod cannot use the SSH agent running on your workstation.
+Your local `origin` remains SSH, so normal `git pull` and `git push` continue using your SSH key. 
 
 For a private repository, either use an HTTPS repository credential or deliberately preserve SSH:
 
